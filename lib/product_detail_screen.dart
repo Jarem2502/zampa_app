@@ -50,14 +50,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               Container(
                 height: 300,
                 width: double.infinity,
-                color: const Color(0xFFF5F5F5), // Gris muy suave
-                child: Center(
-                  child: Icon(
-                    // Icono dinámico según categoría (solo visual)
-                    widget.product.category == 'Bebidas' ? Icons.local_cafe : Icons.fastfood,
-                    size: 100,
-                    color: Colors.black26,
-                  ),
+                color: const Color(0xFFF5F5F5),
+                child: Image.network(
+                  widget.product.imagePath,
+                  fit: BoxFit.contain,
+                  errorBuilder: (c, e, s) => const Icon(Icons.fastfood, size: 100, color: Colors.black26),
                 ),
               ),
               

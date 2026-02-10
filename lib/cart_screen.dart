@@ -206,7 +206,14 @@ class CartItemWidget extends StatelessWidget {
           Container(
             width: 70, height: 70,
             decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
-            child: Icon(product.category == 'Bebidas' ? Icons.local_cafe : Icons.fastfood, color: Colors.black45),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.network(
+                product.imagePath, // Usa la URL del Digimon
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) => const Icon(Icons.fastfood, color: Colors.black45),
+              ),
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(

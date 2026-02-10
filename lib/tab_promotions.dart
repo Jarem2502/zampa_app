@@ -104,13 +104,13 @@ class _TabPromotionsState extends State<TabPromotions> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         title: const Text("¿Permitir ubicación?"),
-        content: const Text("Usamos tu ubicación para mostrarte las mejores ofertas en Huancayo."),
+        content: const Text("Usamos tu ubicación para mostrarte las mejores ofertas de Digimon."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("No permitir")),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              setState(() => _hasPermission = true);
+              setState(() => _hasPermission = true); // Esto activará _buildPromotionsList()
             },
             child: const Text("Permitir", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
