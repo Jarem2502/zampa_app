@@ -125,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: _isLoading ? null : _handleGoogleLogin,
             // CAMBIAMOS EL ICONO AQUÍ 👇
             icon: Image.network(
-              'https://cdn-icons-png.flaticon.com/512/3002/3002219.png',
+              'https://w7.pngwing.com/pngs/989/129/png-transparent-google-logo-google-search-meng-meng-company-text-logo.png',
               height: 24,
             ),
             label: const Text(

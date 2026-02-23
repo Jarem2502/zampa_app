@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_zampa/providers/cart_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'models/product_model.dart';
 
-// Si NO tienes el archivo aún, usa la clase Product que puse al final de este código.
-
 class ProductDetailScreen extends StatefulWidget {
-  // Recibimos el objeto Product (que nos mandaron desde el Menú)
   final ProductModel product;
 
   const ProductDetailScreen({super.key, required this.product});
@@ -33,8 +32,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Calculamos el total en tiempo real
+    // Calculamos el total en tiempo real para mostrar en el botón
     double totalPrice = widget.product.price * quantity;
 
     return Scaffold(
@@ -44,7 +49,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           // 1. ZONA SUPERIOR (Imagen + Botón Volver)
           Stack(
             children: [
-              // Fondo gris o Imagen
               Container(
                 height: 300,
                 width: double.infinity,
@@ -59,8 +63,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ),
                 ),
               ),
-
-              // Botón Volver (Flecha atrás)
               Positioned(
                 top: 50,
                 left: 20,
@@ -69,8 +71,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.black),
                     onPressed: () {
-                      // --- CAMBIO GO_ROUTER ---
-                      context.pop(); // Volver a la pantalla anterior
+                      context.pop();
                     },
                   ),
                 ),
@@ -78,14 +79,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ],
           ),
 
-          // 2. DETALLE DEL PRODUCTO (Scrollable)
+          // 2. DETALLE DEL PRODUCTO
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Título y Precio
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,10 +110,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
-
-                  // Descripción
                   Text(
                     widget.product.description.isNotEmpty
                         ? widget.product.description
@@ -124,12 +121,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       height: 1.4,
                     ),
                   ),
-
                   const SizedBox(height: 30),
                   const Divider(),
                   const SizedBox(height: 20),
-
-                  // Input de notas
                   const Text(
                     "¿Alguna instrucción especial?",
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
@@ -168,7 +162,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
             child: Row(
               children: [
-                // Contador (- 1 +)
+                // Contador
                 Container(
                   decoration: BoxDecoration(
                     color: Colors.grey[200],
@@ -196,15 +190,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(width: 20),
 
-                // Botón Agregar
+                // Botón Agregar Real
                 Expanded(
                   child: ElevatedButton(
                     onPressed: () {
-                      // Aquí iría la lógica para guardar en carrito real (Provider/Bloc/Riverpod)
-                      // Por ahora solo mostramos un aviso visual
+                      // 1. AGREGAMOS EL PRODUCTO AL PROVIDER
+                      // read() se usa en botones porque solo necesitamos mandar una acción, no escuchar cambios constantes
+                      context.read<CartProvider>().addToCart(
+                        widget.product,
+                        quantity: quantity,
+                      );
+
+                      // 2. MOSTRAMOS EL SNACKBAR
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -215,8 +214,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                         ),
                       );
 
-                      // --- CAMBIO GO_ROUTER ---
-                      context.pop(); // Volver al menú después de agregar
+                      // 3. VOLVEMOS AL MENÚ
+                      context.pop();
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF81C784),

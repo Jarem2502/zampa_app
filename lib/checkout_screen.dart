@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Importante para la navegación
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart'; // IMPORTANTE: Para leer el carrito
+import '../providers/cart_provider.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final double totalAmount;
@@ -11,17 +13,33 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  // Controladores de texto
   final _nameController = TextEditingController();
   final _dniController = TextEditingController();
   final _phoneController = TextEditingController();
-  
-  // Selección de opciones (Básico: 1 o 2)
+
   int _selectedPaymentMethod = 1; // 1: Yape/Plin, 2: Transferencia
-  int _selectedOrderType = 1;     // 1: Tienda, 2: Llevar
+  int _selectedOrderType = 1; // 1: Tienda, 2: Llevar
+
+  @override
+  void initState() {
+    super.initState();
+    // TODO: Aquí podrías cargar el nombre del usuario desde SharedPreferences
+    // si ya lo tienes guardado del login.
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _dniController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Escuchamos el carrito para obtener los productos reales
+    final cart = context.watch<CartProvider>();
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -29,7 +47,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(), // CAMBIO: Usamos context.pop()
+          onPressed: () => context.pop(),
         ),
         title: const Text(
           "Confirmar Datos",
@@ -46,7 +64,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F5E9), 
+                color: const Color(0xFFE8F5E9),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.green.shade200),
               ),
@@ -56,44 +74,93 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   const Text("Total a Pagar:", style: TextStyle(fontSize: 16)),
                   Text(
                     "S/${widget.totalAmount.toStringAsFixed(2)}",
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 30),
 
-            // 2. TIPO DE PEDIDO (Uso de Row/Column básico)
-            const Text("¿Cómo deseas tu pedido?", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            // 2. TIPO DE PEDIDO
+            const Text(
+              "¿Cómo deseas tu pedido?",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 15),
             Row(
               children: [
-                Expanded(child: _buildOrderTypeCard(1, "En tienda", Icons.store_mall_directory)),
+                Expanded(
+                  child: _buildOrderTypeCard(
+                    1,
+                    "En tienda",
+                    Icons.store_mall_directory,
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: _buildOrderTypeCard(2, "Para llevar", Icons.shopping_bag)),
+                Expanded(
+                  child: _buildOrderTypeCard(
+                    2,
+                    "Para llevar",
+                    Icons.shopping_bag,
+                  ),
+                ),
               ],
             ),
 
             const SizedBox(height: 30),
 
             // 3. FORMULARIO
-            const Text("Tus Datos", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              "Tus Datos",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 15),
-            _buildTextField(controller: _nameController, label: "Nombre", icon: Icons.person_outline),
+            _buildTextField(
+              controller: _nameController,
+              label: "Nombre Completo",
+              icon: Icons.person_outline,
+            ),
             const SizedBox(height: 15),
-            _buildTextField(controller: _dniController, label: "DNI", icon: Icons.badge_outlined, kbType: TextInputType.number),
+            _buildTextField(
+              controller: _dniController,
+              label: "DNI (Opcional para boleta)",
+              icon: Icons.badge_outlined,
+              kbType: TextInputType.number,
+            ),
             const SizedBox(height: 15),
-            _buildTextField(controller: _phoneController, label: "Celular", icon: Icons.phone_android, kbType: TextInputType.phone),
-            
+            _buildTextField(
+              controller: _phoneController,
+              label: "Celular de contacto",
+              icon: Icons.phone_android,
+              kbType: TextInputType.phone,
+            ),
+
             const SizedBox(height: 30),
 
             // 4. MÉTODOS DE PAGO
-            const Text("Método de Pago", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text(
+              "Método de Pago",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 15),
-            _buildPaymentOption(1, "Yape / Plin", Icons.qr_code_2, Colors.purple),
+            _buildPaymentOption(
+              1,
+              "Yape / Plin",
+              Icons.qr_code_2,
+              Colors.purple,
+            ),
             const SizedBox(height: 10),
-            _buildPaymentOption(2, "Transferencia", Icons.account_balance, Colors.blue),
-            
+            _buildPaymentOption(
+              2,
+              "Transferencia",
+              Icons.account_balance,
+              Colors.blue,
+            ),
+
             const SizedBox(height: 40),
 
             // 5. BOTÓN CONTINUAR
@@ -102,28 +169,59 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               height: 55,
               child: ElevatedButton(
                 onPressed: () {
-                  if (_nameController.text.isEmpty || _dniController.text.isEmpty) {
+                  if (_nameController.text.isEmpty ||
+                      _phoneController.text.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Completa tus datos")),
+                      const SnackBar(
+                        content: Text("Por favor, ingresa tu nombre y celular"),
+                      ),
                     );
                     return;
                   }
 
-                  // --- NAVEGACIÓN CON GO_ROUTER ---
-                  // Pasamos los datos necesarios a la pantalla de subir comprobante
-                  context.push('/pago-comprobante', extra: {
-                    'total': widget.totalAmount,
-                    'metodo': _selectedPaymentMethod,
-                    'nombre': _nameController.text,
-                  });
+                  // PREPARAMOS LA DATA PARA LARAVEL
+                  // Convertimos los items del carrito a un formato que Laravel entienda
+                  final productosMap = cart.items
+                      .map(
+                        (item) => {
+                          'product_id': item.product.id,
+                          'quantity': item.quantity,
+                          'price': item.product.price,
+                        },
+                      )
+                      .toList();
+
+                  context.push(
+                    '/pago-comprobante',
+                    extra: {
+                      'total': widget.totalAmount,
+                      'metodo': _selectedPaymentMethod == 1
+                          ? 'yape'
+                          : 'transferencia',
+                      'nombre': _nameController.text,
+                      'dni': _dniController.text,
+                      'telefono': _phoneController.text,
+                      'tipo_pedido': _selectedOrderType == 1
+                          ? 'tienda'
+                          : 'recojo',
+                      'productos':
+                          productosMap, // Enviamos la lista real de comida
+                    },
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 child: const Text(
                   "Continuar al Pago",
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
@@ -133,7 +231,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  // WIDGET AUXILIAR: TARJETAS DE TIPO DE PEDIDO
+  // ... (Tus métodos auxiliares _buildOrderTypeCard, _buildTextField y _buildPaymentOption se mantienen igual)
+
   Widget _buildOrderTypeCard(int value, String title, IconData icon) {
     bool isSel = _selectedOrderType == value;
     return GestureDetector(
@@ -143,20 +242,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         decoration: BoxDecoration(
           color: isSel ? Colors.black : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSel ? Colors.black : Colors.grey.shade300),
+          border: Border.all(
+            color: isSel ? Colors.black : Colors.grey.shade300,
+          ),
         ),
         child: Column(
           children: [
             Icon(icon, color: isSel ? Colors.white : Colors.black54),
-            Text(title, style: TextStyle(color: isSel ? Colors.white : Colors.black87, fontWeight: FontWeight.bold)),
+            Text(
+              title,
+              style: TextStyle(
+                color: isSel ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // WIDGET AUXILIAR: INPUTS
-  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, TextInputType kbType = TextInputType.text}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType kbType = TextInputType.text,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: kbType,
@@ -165,13 +276,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         prefixIcon: Icon(icon),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.black12)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.black12),
+        ),
       ),
     );
   }
 
-  // WIDGET AUXILIAR: OPCIONES DE PAGO
-  Widget _buildPaymentOption(int value, String title, IconData icon, Color color) {
+  Widget _buildPaymentOption(
+    int value,
+    String title,
+    IconData icon,
+    Color color,
+  ) {
     bool isSel = _selectedPaymentMethod == value;
     return GestureDetector(
       onTap: () => setState(() => _selectedPaymentMethod = value),
@@ -180,7 +298,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSel ? Colors.black : Colors.transparent, width: 2),
+          border: Border.all(
+            color: isSel ? Colors.black : Colors.transparent,
+            width: 2,
+          ),
         ),
         child: Row(
           children: [

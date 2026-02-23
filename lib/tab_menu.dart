@@ -17,7 +17,7 @@ class _TabMenuState extends State<TabMenu> {
   String mainCategory = 'Alimentos';
   String selectedSubCategory = 'Todo';
 
-  // Categorías basadas en tu base de datos SQL
+  // ATENCIÓN: Estos nombres deben coincidir con los que devuelve Laravel en "categoryName"
   final List<String> bebidasSubs = [
     'Todo',
     'Bebidas Frías',
@@ -41,11 +41,12 @@ class _TabMenuState extends State<TabMenu> {
     _loadProducts();
   }
 
+  // Llamada a TU servicio usando 'Todo' para traer el catálogo completo de golpe
   Future<void> _loadProducts() async {
     try {
       ProductService service = ProductService();
-      // Traemos todo el catálogo de tu Laravel
       List<ProductModel> fetched = await service.getProductsByCategory('Todo');
+
       setState(() {
         allProducts = fetched;
         isLoading = false;
@@ -62,17 +63,21 @@ class _TabMenuState extends State<TabMenu> {
         ? bebidasSubs
         : alimentosSubs;
 
-    // Filtramos los productos de la BD para mostrarlos en la pestaña correcta
+    // Filtramos los productos según la categoría usando el categoryName de tu modelo
     List<ProductModel> filteredProducts = allProducts.where((p) {
       bool isBebida = bebidasSubs.contains(p.categoryName);
       bool isAlimento = alimentosSubs.contains(p.categoryName);
 
+      // 1er Filtro: ¿Es alimento o bebida?
       if (mainCategory == 'Bebidas' && !isBebida) return false;
       if (mainCategory == 'Alimentos' && !isAlimento) return false;
 
+      // 2do Filtro: Subcategoría específica (ej. solo 'Hamburguesas')
       if (selectedSubCategory != 'Todo' &&
-          p.categoryName != selectedSubCategory)
+          p.categoryName != selectedSubCategory) {
         return false;
+      }
+
       return true;
     }).toList();
 
@@ -157,13 +162,14 @@ class _TabMenuState extends State<TabMenu> {
                           : GridView.builder(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
+                                vertical: 8,
                               ),
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: 2,
                                     crossAxisSpacing: 15,
                                     mainAxisSpacing: 15,
-                                    childAspectRatio: 0.8,
+                                    childAspectRatio: 0.75,
                                   ),
                               itemCount: filteredProducts.length,
                               itemBuilder: (context, index) {

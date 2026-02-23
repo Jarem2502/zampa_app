@@ -18,6 +18,16 @@ class AuthService {
         final token = response.data['access_token'];
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
+
+        // 🔥 NUEVO: Atrapamos el ID del usuario y lo guardamos
+        // Buscamos si Laravel nos mandó el ID dentro de 'user' o directo como 'user_id'
+        final userData = response.data['user'];
+        if (userData != null && userData['id'] != null) {
+          await prefs.setString('user_id', userData['id'].toString());
+        } else if (response.data['user_id'] != null) {
+          await prefs.setString('user_id', response.data['user_id'].toString());
+        }
+
         return true;
       }
       return false;
@@ -30,19 +40,16 @@ class AuthService {
   // --- LOGIN CON GOOGLE ---
   Future<bool> loginWithGoogle() async {
     try {
-      // Configuramos el cliente con tu ID obtenido de Google Cloud
       final GoogleSignIn googleSignIn = GoogleSignIn(
         clientId:
             '834264942658-fai8mqcfefifegt30bg7kh4fm2lvm95e.apps.googleusercontent.com',
       );
 
-      // Limpiamos cualquier sesión previa para que siempre pida elegir cuenta
       await googleSignIn.signOut();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return false; // El usuario canceló
+      if (googleUser == null) return false;
 
-      // Enviamos el correo y nombre a tu Laravel en Hostinger
       final response = await _dio.post(
         '/auth/google',
         data: {
@@ -55,6 +62,15 @@ class AuthService {
         final token = response.data['access_token'];
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
+
+        // 🔥 NUEVO: Guardamos también el ID del usuario de Google
+        final userData = response.data['user'];
+        if (userData != null && userData['id'] != null) {
+          await prefs.setString('user_id', userData['id'].toString());
+        } else if (response.data['user_id'] != null) {
+          await prefs.setString('user_id', response.data['user_id'].toString());
+        }
+
         return true;
       }
       return false;
@@ -91,6 +107,8 @@ class AuthService {
   // --- CERRAR SESIÓN ---
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
+    // 🔥 Limpiamos tanto el token como el ID al salir
     await prefs.remove('auth_token');
+    await prefs.remove('user_id');
   }
 }

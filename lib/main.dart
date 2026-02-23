@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_application_zampa/providers/cart_provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+// Importación de modelos
 import 'models/product_model.dart';
+
+// Importación de pantallas
 import 'login_screen.dart';
 import 'register_screen.dart';
 import 'recovery_screens.dart';
@@ -25,6 +31,7 @@ void main() {
   runApp(const MyApp());
 }
 
+// Configuración de Rutas con GoRouter
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   routes: [
@@ -48,12 +55,11 @@ final GoRouter _router = GoRouter(
     GoRoute(path: '/menu', builder: (context, state) => const MenuScreen()),
     GoRoute(path: '/carrito', builder: (context, state) => const CartScreen()),
 
-    // --- NUEVA RUTA: DETALLE DE PRODUCTO ---
+    // Ruta Detalle de Producto
     GoRoute(
       path: '/detalle',
       builder: (context, state) {
-        final product =
-            state.extra as ProductModel; // Recibe el objeto del producto
+        final product = state.extra as ProductModel;
         return ProductDetailScreen(product: product);
       },
     ),
@@ -101,8 +107,9 @@ final GoRouter _router = GoRouter(
         final data = state.extra as Map<String, dynamic>;
         return PaymentUploadScreen(
           totalAmount: data['total'],
-          paymentMethod: data['metodo'],
+          paymentMethod: data['metodo'].toString(),
           clientName: data['nombre'],
+          extraData: data,
         );
       },
     ),
@@ -133,17 +140,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Zampa App',
-      debugShowCheckedModeBanner: false,
-      routerConfig: _router,
-      theme: ThemeData(
-        useMaterial3: true,
-        primaryColor: Colors.black,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32), // El verde de Zampa
+    // El MultiProvider envuelve a MaterialApp.router para que el contexto sea global
+    return MultiProvider(
+      providers: [ChangeNotifierProvider(create: (_) => CartProvider())],
+      child: MaterialApp.router(
+        title: 'Zampa App',
+        debugShowCheckedModeBanner: false,
+        routerConfig: _router,
+        theme: ThemeData(
+          useMaterial3: true,
+          primaryColor: Colors.black,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFF2E7D32), // El verde de Zampa
+          ),
+          scaffoldBackgroundColor: Colors.white,
         ),
-        scaffoldBackgroundColor: Colors.white,
       ),
     );
   }
