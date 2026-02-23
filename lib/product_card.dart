@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'zampa_data.dart';
+import 'models/product_model.dart'; // Tu nuevo modelo
 
 class ProductCard extends StatelessWidget {
-  final Product product;
+  final ProductModel product;
 
   const ProductCard({super.key, required this.product});
 
@@ -18,7 +18,11 @@ class ProductCard extends StatelessWidget {
           color: const Color(0xFFDDE0FF),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -26,11 +30,18 @@ class ProductCard extends StatelessWidget {
           children: [
             Expanded(
               child: Hero(
-                tag: 'prod_${product.name}',
-                // Aquí está el cambio: Image.network para URLs
-                child: Image.network(
-                  product.imagePath,
-                  errorBuilder: (c, e, s) => const Icon(Icons.broken_image, size: 40),
+                tag: 'prod_${product.id}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    product.imagePath,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.fastfood,
+                      size: 45,
+                      color: Colors.black54,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -38,14 +49,24 @@ class ProductCard extends StatelessWidget {
             Text(
               product.name,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             ),
-            const SizedBox(height: 5),
-            Text(
-              'S/${product.price.toStringAsFixed(2)}',
-              style: const TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.bold),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC5CAFF),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'S/${product.price.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
           ],
         ),

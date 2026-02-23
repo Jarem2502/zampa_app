@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
-import 'zampa_data.dart';
+import 'models/product_model.dart';
 
 // Si NO tienes el archivo aún, usa la clase Product que puse al final de este código.
 
 class ProductDetailScreen extends StatefulWidget {
   // Recibimos el objeto Product (que nos mandaron desde el Menú)
-  final Product product;
+  final ProductModel product;
 
   const ProductDetailScreen({super.key, required this.product});
 
@@ -42,7 +41,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          
           // 1. ZONA SUPERIOR (Imagen + Botón Volver)
           Stack(
             children: [
@@ -54,10 +52,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: Image.network(
                   widget.product.imagePath,
                   fit: BoxFit.contain,
-                  errorBuilder: (c, e, s) => const Icon(Icons.fastfood, size: 100, color: Colors.black26),
+                  errorBuilder: (c, e, s) => const Icon(
+                    Icons.fastfood,
+                    size: 100,
+                    color: Colors.black26,
+                  ),
                 ),
               ),
-              
+
               // Botón Volver (Flecha atrás)
               Positioned(
                 top: 50,
@@ -108,13 +110,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
 
                   // Descripción
                   Text(
-                    widget.product.description.isNotEmpty 
-                        ? widget.product.description 
+                    widget.product.description.isNotEmpty
+                        ? widget.product.description
                         : "Delicioso producto preparado al momento con los mejores ingredientes.",
                     style: const TextStyle(
                       fontSize: 16,
@@ -181,7 +183,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       ),
                       Text(
                         '$quantity',
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       IconButton(
                         onPressed: _increment,
@@ -191,7 +196,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     ],
                   ),
                 ),
-                
+
                 const SizedBox(width: 20),
 
                 // Botón Agregar
@@ -202,12 +207,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       // Por ahora solo mostramos un aviso visual
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Agregaste $quantity ${widget.product.name} al pedido'),
+                          content: Text(
+                            'Agregaste $quantity ${widget.product.name} al pedido',
+                          ),
                           backgroundColor: Colors.green,
                           duration: const Duration(seconds: 2),
                         ),
                       );
-                      
+
                       // --- CAMBIO GO_ROUTER ---
                       context.pop(); // Volver al menú después de agregar
                     },
@@ -223,12 +230,20 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       children: [
                         const Text(
                           "Agregar",
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
                           "S/${totalPrice.toStringAsFixed(2)}",
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                       ],
                     ),
