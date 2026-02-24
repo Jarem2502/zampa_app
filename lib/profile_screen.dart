@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Importante para la navegación
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart'; // 🔥 Importante para leer los datos
+import 'providers/auth_provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 Escuchamos al AuthProvider para obtener los datos del usuario logueado
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.user;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5), 
       extendBodyBehindAppBar: true, 
@@ -14,7 +20,7 @@ class ProfileScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => context.pop(), // Regresar al menú
+          onPressed: () => context.pop(), 
         ),
         title: const Text(
           "Mi Perfil",
@@ -25,7 +31,7 @@ class ProfileScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // 1. CABECERA CURVA CON FOTO (Stack)
+            // 1. CABECERA CURVA CON FOTO
             Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
@@ -54,11 +60,11 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: const CircleAvatar(
+                    child: CircleAvatar(
                       radius: 60,
-                      // Asegúrate de tener esta imagen en tus assets
-                      backgroundImage: AssetImage('assets/jarem_profile.png'),
-                      backgroundColor: Colors.grey, // Fondo si no carga imagen
+                      // Si el usuario es de Google, podrías cargar su foto aquí luego
+                      backgroundImage: const AssetImage('assets/jarem_profile.png'),
+                      backgroundColor: Colors.grey[300],
                     ),
                   ),
                 ),
@@ -67,7 +73,7 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 70), 
 
-            // 2. DATOS PERSONALES
+            // 2. DATOS PERSONALES DINÁMICOS
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
@@ -83,8 +89,9 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 15),
 
-                  _buildInfoCard(Icons.person, "Nombre", "Carlos Zampa"),
-                  _buildInfoCard(Icons.email, "Correo", "carlos@zampa.pe"),
+                  // 🔥 Mostramos el nombre y correo real del Modelo
+                  _buildInfoCard(Icons.person, "Nombre", user?.name ?? "Invitado"),
+                  _buildInfoCard(Icons.email, "Correo", user?.email ?? "Sin correo"),
                   _buildInfoCard(Icons.lock, "Contraseña", "••••••••"), 
 
                   const SizedBox(height: 30),
@@ -132,17 +139,19 @@ class ProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 50),
 
-            // 4. BOTÓN CERRAR SESIÓN
+            // 4. BOTÓN CERRAR SESIÓN SEGURO
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: SizedBox(
                 width: double.infinity,
                 height: 55,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // --- CAMBIO GO_ROUTER ---
-                    // Regresamos al login limpiando el historial
-                    context.go('/'); 
+                  onPressed: () async {
+                    // 🔥 Llamamos al logout del Provider para limpiar todo
+                    await context.read<AuthProvider>().logout();
+                    if (context.mounted) {
+                      context.go('/'); // Regresamos al login
+                    }
                   },
                   icon: const Icon(Icons.logout, color: Colors.white),
                   label: const Text(
@@ -164,7 +173,6 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // WIDGET AUXILIAR PARA LAS TARJETAS DE DATOS
   Widget _buildInfoCard(IconData icon, String label, String value) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -180,12 +188,17 @@ class ProfileScreen extends StatelessWidget {
         children: [
           Icon(icon, color: Colors.grey[400], size: 22),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-              Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            ],
+          Expanded( // Añadido para evitar desbordamiento de texto
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                Text(value, 
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),

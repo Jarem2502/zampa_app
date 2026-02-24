@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart'; // 🔥 Importamos el nuevo provider
 import 'shared_components.dart';
-import 'services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,11 +14,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final AuthService _authService = AuthService();
 
   bool _isObscure = true;
   bool _isLoading = false;
 
+  // --- INICIAR SESIÓN TRADICIONAL ---
   void _handleLogin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -27,10 +28,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() => _isLoading = true);
-    bool success = await _authService.login(
+    
+    // 🔥 USAMOS EL PROVIDER: Esto guarda al UserModel en el estado global
+    bool success = await context.read<AuthProvider>().login(
       _emailController.text.trim(),
       _passwordController.text.trim(),
     );
+    
     setState(() => _isLoading = false);
 
     if (success) {
@@ -47,10 +51,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // --- Función para el botón de Google ---
+  // --- LOGIN CON GOOGLE ---
   void _handleGoogleLogin() async {
     setState(() => _isLoading = true);
-    bool success = await _authService.loginWithGoogle();
+    
+    // 🔥 USAMOS EL PROVIDER PARA GOOGLE
+    bool success = await context.read<AuthProvider>().loginWithGoogle();
+    
     setState(() => _isLoading = false);
 
     if (success) {
@@ -120,10 +127,8 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 15),
 
           // --- BOTÓN DE GOOGLE ---
-          // --- BOTÓN DE GOOGLE ---
           OutlinedButton.icon(
             onPressed: _isLoading ? null : _handleGoogleLogin,
-            // CAMBIAMOS EL ICONO AQUÍ 👇
             icon: Image.network(
               'https://w7.pngwing.com/pngs/989/129/png-transparent-google-logo-google-search-meng-meng-company-text-logo.png',
               height: 24,

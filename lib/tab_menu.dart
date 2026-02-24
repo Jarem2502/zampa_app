@@ -13,27 +13,21 @@ class TabMenu extends StatefulWidget {
 class _TabMenuState extends State<TabMenu> {
   bool isLoading = true;
   List<ProductModel> allProducts = [];
-
   String mainCategory = 'Alimentos';
   String selectedSubCategory = 'Todo';
 
-  // ATENCIÓN: Estos nombres deben coincidir con los que devuelve Laravel en "categoryName"
-  final List<String> bebidasSubs = [
-    'Todo',
-    'Bebidas Frías',
-    'Cafés',
-    'Jugos',
-    'Bebidas Calientes',
-    'Tés Frutados',
-  ];
-  final List<String> alimentosSubs = [
-    'Todo',
-    'Hamburguesas',
-    'Salchipapas',
-    'Sándwiches',
-    'Enchiladas',
-    'Especiales',
-  ];
+  //IDs según tu SQL: 1:Hamburguesas, 2:Salchipapas, 3:Sándwiches, 4:Enchiladas, 5:Especiales
+  final Map<String, int> subCategoryIds = {
+    'Hamburguesas': 1,
+    'Salchipapas': 2,
+    'Sándwiches': 3,
+    'Enchiladas': 4,
+    'Especiales': 5,
+    'Bebidas Frías': 6,
+    'Cafés': 7,
+    'Jugos': 8,
+    'Bebidas Calientes': 11,
+  };
 
   @override
   void initState() {
@@ -41,41 +35,38 @@ class _TabMenuState extends State<TabMenu> {
     _loadProducts();
   }
 
-  // Llamada a TU servicio usando 'Todo' para traer el catálogo completo de golpe
   Future<void> _loadProducts() async {
     try {
-      ProductService service = ProductService();
-      List<ProductModel> fetched = await service.getProductsByCategory('Todo');
-
-      setState(() {
-        allProducts = fetched;
-        isLoading = false;
-      });
+      final fetched = await ProductService().getProducts();
+      if (mounted) {
+        setState(() {
+          allProducts = fetched;
+          isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => isLoading = false);
-      print("Error cargando menú: $e");
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    List<String> currentSubCategories = (mainCategory == 'Bebidas')
-        ? bebidasSubs
-        : alimentosSubs;
+    // Definimos qué subcategorías mostrar en los Chips
+    List<String> currentSubCategories = (mainCategory == 'Bebidas') 
+      ? ['Todo', 'Bebidas Frías', 'Cafés', 'Jugos', 'Bebidas Calientes']
+      : ['Todo', 'Hamburguesas', 'Salchipapas', 'Sándwiches', 'Enchiladas', 'Especiales'];
 
-    // Filtramos los productos según la categoría usando el categoryName de tu modelo
+    // 🔥 FILTRADO POR IDS REALES DEL SQL
     List<ProductModel> filteredProducts = allProducts.where((p) {
-      bool isBebida = bebidasSubs.contains(p.categoryName);
-      bool isAlimento = alimentosSubs.contains(p.categoryName);
-
-      // 1er Filtro: ¿Es alimento o bebida?
+      // 1. Filtro por Categoría Principal (Alimentos vs Bebidas)
+      bool isBebida = [6, 7, 8, 11].contains(p.categoryId);
+      if (mainCategory == 'Alimentos' && isBebida) return false;
       if (mainCategory == 'Bebidas' && !isBebida) return false;
-      if (mainCategory == 'Alimentos' && !isAlimento) return false;
 
-      // 2do Filtro: Subcategoría específica (ej. solo 'Hamburguesas')
-      if (selectedSubCategory != 'Todo' &&
-          p.categoryName != selectedSubCategory) {
-        return false;
+      // 2. Filtro por Subcategoría (Chips)
+      if (selectedSubCategory != 'Todo') {
+        int? targetId = subCategoryIds[selectedSubCategory];
+        return p.categoryId == targetId;
       }
 
       return true;
@@ -83,7 +74,6 @@ class _TabMenuState extends State<TabMenu> {
 
     return Column(
       children: [
-        // CABECERA VERDE
         Container(
           color: const Color(0xFF81C784),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -91,14 +81,10 @@ class _TabMenuState extends State<TabMenu> {
             children: [
               TextField(
                 decoration: InputDecoration(
-                  hintText: '¿Qué se te antoja hoy?',
+                  hintText: '¿Qué se te antoja en Zampa?',
                   prefixIcon: const Icon(Icons.search),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
+                  filled: true, fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                 ),
               ),
@@ -112,23 +98,14 @@ class _TabMenuState extends State<TabMenu> {
             ],
           ),
         ),
-
-        // LISTADO DE PRODUCTOS
         Expanded(
           child: isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: Colors.green),
-                )
+              ? const Center(child: CircularProgressIndicator(color: Colors.green))
               : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // FILTROS HORIZONTALES (CHIPS)
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 15,
-                        horizontal: 10,
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
                       child: Row(
                         children: currentSubCategories.map((subCat) {
                           bool isSelected = selectedSubCategory == subCat;
@@ -138,45 +115,23 @@ class _TabMenuState extends State<TabMenu> {
                               label: Text(subCat),
                               selected: isSelected,
                               selectedColor: const Color(0xFF81C784),
-                              labelStyle: TextStyle(
-                                color: isSelected ? Colors.white : Colors.black,
-                                fontWeight: isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              onSelected: (selected) {
-                                setState(() => selectedSubCategory = subCat);
-                              },
+                              onSelected: (val) => setState(() => selectedSubCategory = subCat),
                             ),
                           );
                         }).toList(),
                       ),
                     ),
-
-                    // GRILLA DE PRODUCTOS
                     Expanded(
                       child: filteredProducts.isEmpty
-                          ? const Center(
-                              child: Text("No hay productos en esta categoría"),
-                            )
+                          ? const Center(child: Text("No hay productos disponibles"))
                           : GridView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+                              padding: const EdgeInsets.all(16),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2, childAspectRatio: 0.75,
+                                crossAxisSpacing: 15, mainAxisSpacing: 15,
                               ),
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    crossAxisSpacing: 15,
-                                    mainAxisSpacing: 15,
-                                    childAspectRatio: 0.75,
-                                  ),
                               itemCount: filteredProducts.length,
-                              itemBuilder: (context, index) {
-                                return ProductCard(
-                                  product: filteredProducts[index],
-                                );
-                              },
+                              itemBuilder: (context, index) => ProductCard(product: filteredProducts[index]),
                             ),
                     ),
                   ],
@@ -190,27 +145,12 @@ class _TabMenuState extends State<TabMenu> {
     bool isActive = mainCategory == title;
     return Expanded(
       child: InkWell(
-        onTap: () {
-          setState(() {
-            mainCategory = title;
-            selectedSubCategory = 'Todo';
-          });
-        },
+        onTap: () => setState(() { mainCategory = title; selectedSubCategory = 'Todo'; }),
         child: Column(
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isActive ? Colors.black : Colors.black54,
-              ),
-            ),
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: isActive ? Colors.black : Colors.black54)),
             const SizedBox(height: 8),
-            Container(
-              height: 3,
-              color: isActive ? Colors.black : Colors.transparent,
-            ),
+            Container(height: 3, color: isActive ? Colors.black : Colors.transparent),
           ],
         ),
       ),

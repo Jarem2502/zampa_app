@@ -53,15 +53,17 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 height: 300,
                 width: double.infinity,
                 color: const Color(0xFFF5F5F5),
-                child: Image.network(
-                  widget.product.imagePath,
-                  fit: BoxFit.contain,
-                  errorBuilder: (c, e, s) => const Icon(
-                    Icons.fastfood,
-                    size: 100,
-                    color: Colors.black26,
-                  ),
-                ),
+                child: widget.product.imageUrl != null // 🔥 CORREGIDO: Usamos imageUrl
+                    ? Image.network(
+                        widget.product.imageUrl!, // 🔥 CORREGIDO
+                        fit: BoxFit.contain,
+                        errorBuilder: (c, e, s) => const Icon(
+                          Icons.fastfood,
+                          size: 100,
+                          color: Colors.black26,
+                        ),
+                      )
+                    : const Icon(Icons.fastfood, size: 100, color: Colors.black26),
               ),
               Positioned(
                 top: 50,
@@ -197,7 +199,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   child: ElevatedButton(
                     onPressed: () {
                       // 1. AGREGAMOS EL PRODUCTO AL PROVIDER
-                      // read() se usa en botones porque solo necesitamos mandar una acción, no escuchar cambios constantes
                       context.read<CartProvider>().addToCart(
                         widget.product,
                         quantity: quantity,

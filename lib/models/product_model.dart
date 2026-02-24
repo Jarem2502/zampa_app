@@ -1,46 +1,33 @@
-import '../utils/dio_client.dart';
-
 class ProductModel {
   final int id;
   final String name;
-  final double price;
-  final String imagePath;
   final String description;
-  final String categoryName;
+  final double price;
+  final String? imageUrl;
+  final int categoryId;
 
   ProductModel({
     required this.id,
     required this.name,
-    required this.price,
-    required this.imagePath,
     required this.description,
-    required this.categoryName,
+    required this.price,
+    this.imageUrl,
+    required this.categoryId,
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
-    // Laravel a veces manda los precios como string (ej. "19.00"), lo pasamos a double
-    double parsedPrice = 0.0;
-    if (json['price'] != null) {
-      parsedPrice = double.tryParse(json['price'].toString()) ?? 0.0;
-    }
+    // 🔥 URL base para Hostinger
+    const String baseUrl = 'https://zampa.pro-cafes.com/storage/';
 
-    // Extraemos el nombre de la categoría (Laravel trae un objeto anidado por el 'with')
-    String catName = 'Otros';
-    if (json['category'] != null && json['category']['name'] != null) {
-      catName = json['category']['name'];
-    }
-
+    // Mapeo exacto según tu SQL
     return ProductModel(
       id: json['id'] ?? 0,
-      name: json['name'] ?? 'Sin nombre',
-      price: parsedPrice,
-      // Usamos el helper de DioClient para armar la ruta completa de la imagen
-      imagePath: DioClient.getImageUrl(
-        json['image']?.toString().replaceAll('\\', '/'),
-      ),
-      description:
-          json['description'] ?? 'Delicioso producto preparado al momento.',
-      categoryName: catName,
+      name: json['name'] ?? 'Producto',
+      description: json['description'] ?? '',
+      price: double.tryParse(json['price']?.toString() ?? '0') ?? 0.0,
+      categoryId: json['category_id'] ?? 1,
+      // 🔥 En tu SQL la columna se llama 'image'
+      imageUrl: json['image'] != null ? baseUrl + json['image'] : null,
     );
   }
 }

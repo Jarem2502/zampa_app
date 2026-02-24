@@ -2,12 +2,14 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../utils/dio_client.dart';
+import '../models/user_model.dart'; // 🔥 Importamos tu nuevo modelo
 
 class AuthService {
   final Dio _dio = DioClient.dio;
 
   // --- INICIAR SESIÓN TRADICIONAL ---
-  Future<bool> login(String email, String password) async {
+  // Ahora devuelve un UserModel? en lugar de bool
+  Future<UserModel?> login(String email, String password) async {
     try {
       final response = await _dio.post(
         '/login',
@@ -19,36 +21,34 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
 
-        // 🔥 NUEVO: Atrapamos el ID del usuario y lo guardamos
-        // Buscamos si Laravel nos mandó el ID dentro de 'user' o directo como 'user_id'
-        final userData = response.data['user'];
+        final userData = response.data['user'] ?? response.data;
+        
         if (userData != null && userData['id'] != null) {
           await prefs.setString('user_id', userData['id'].toString());
-        } else if (response.data['user_id'] != null) {
-          await prefs.setString('user_id', response.data['user_id'].toString());
         }
 
-        return true;
+        // 🔥 Convertimos el JSON crudo en un objeto Dart elegante
+        return UserModel.fromJson(userData, authToken: token);
       }
-      return false;
+      return null;
     } catch (e) {
       print("Error en login: $e");
-      return false;
+      return null;
     }
   }
 
   // --- LOGIN CON GOOGLE ---
-  Future<bool> loginWithGoogle() async {
+  // También devuelve UserModel?
+  Future<UserModel?> loginWithGoogle() async {
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId:
-            '834264942658-fai8mqcfefifegt30bg7kh4fm2lvm95e.apps.googleusercontent.com',
+        clientId: '834264942658-fai8mqcfefifegt30bg7kh4fm2lvm95e.apps.googleusercontent.com',
       );
 
       await googleSignIn.signOut();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return false;
+      if (googleUser == null) return null; // El usuario canceló
 
       final response = await _dio.post(
         '/auth/google',
@@ -63,24 +63,24 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
 
-        // 🔥 NUEVO: Guardamos también el ID del usuario de Google
-        final userData = response.data['user'];
+        final userData = response.data['user'] ?? response.data;
         if (userData != null && userData['id'] != null) {
           await prefs.setString('user_id', userData['id'].toString());
-        } else if (response.data['user_id'] != null) {
-          await prefs.setString('user_id', response.data['user_id'].toString());
         }
 
-        return true;
+        // 🔥 Retornamos el modelo listo para usar
+        return UserModel.fromJson(userData, authToken: token);
       }
-      return false;
+      return null;
     } catch (e) {
       print("Error detallado en Google Login: $e");
-      return false;
+      return null;
     }
   }
 
   // --- REGISTRO ---
+  // Este se puede quedar como bool porque generalmente después de registrar
+  // mandas al usuario a la pantalla de login.
   Future<bool> register(String username, String email, String password) async {
     try {
       final response = await _dio.post(
@@ -91,9 +91,7 @@ class AuthService {
       return true;
     } on DioException catch (e) {
       if (e.response != null) {
-        print(
-          "Error del servidor (${e.response?.statusCode}): ${e.response?.data}",
-        );
+        print("Error del servidor (${e.response?.statusCode}): ${e.response?.data}");
       } else {
         print("Error de conexión: ${e.message}");
       }
@@ -107,7 +105,6 @@ class AuthService {
   // --- CERRAR SESIÓN ---
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    // 🔥 Limpiamos tanto el token como el ID al salir
     await prefs.remove('auth_token');
     await prefs.remove('user_id');
   }

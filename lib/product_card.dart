@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'models/product_model.dart'; // Tu nuevo modelo
+import 'models/product_model.dart'; 
 
 class ProductCard extends StatelessWidget {
   final ProductModel product;
@@ -15,7 +15,7 @@ class ProductCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFFDDE0FF),
+          color: const Color(0xFFF0F2FF), // Un tono más suave para Zampa
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
@@ -33,15 +33,17 @@ class ProductCard extends StatelessWidget {
                 tag: 'prod_${product.id}',
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    product.imagePath,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.fastfood,
-                      size: 45,
-                      color: Colors.black54,
-                    ),
-                  ),
+                  child: product.imageUrl != null 
+                    ? Image.network(
+                        product.imageUrl!, // 🔥 Usamos imageUrl corregido
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => const Icon(
+                          Icons.fastfood,
+                          size: 45,
+                          color: Colors.black54,
+                        ),
+                      )
+                    : const Icon(Icons.fastfood, size: 45, color: Colors.black54),
                 ),
               ),
             ),

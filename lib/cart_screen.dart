@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Importante
-import 'package:provider/provider.dart'; // NUEVO: Importamos Provider
-import '../providers/cart_provider.dart'; // NUEVO: Tu cerebro del carrito
-import '../models/product_model.dart'; // NUEVO: Tu modelo real
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
+import '../models/product_model.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -16,13 +16,11 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // AQUÍ OCURRE LA MAGIA: Nos conectamos al cerebro del carrito
+    // 🔥 Nos conectamos al Provider
     final cart = context.watch<CartProvider>();
-    final cartItems = cart.items;
+    final cartItems = cart.items; // Ya es una lista, no necesita .values.toList()
 
-    // Si el carrito se vacía, salimos del modo eliminar automáticamente
     if (cartItems.isEmpty && _isDeleteMode) {
-      // Usamos un pequeño delay para no romper el ciclo de dibujado de Flutter
       WidgetsBinding.instance.addPostFrameCallback((_) {
         setState(() => _isDeleteMode = false);
       });
@@ -43,7 +41,6 @@ class _CartScreenState extends State<CartScreen> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
-          // Solo mostramos el botón de basura si hay productos
           if (cartItems.isNotEmpty)
             IconButton(
               icon: Icon(
@@ -76,23 +73,20 @@ class _CartScreenState extends State<CartScreen> {
                     itemCount: cartItems.length,
                     separatorBuilder: (c, i) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
-                      final item = cartItems[index]; // Extraemos el CartItem
+                      final item = cartItems[index];
 
                       return CartItemWidget(
                         product: item.product,
                         qty: item.quantity,
                         isDeleteMode: _isDeleteMode,
-                        // Usamos las funciones de tu Provider en lugar de listas locales
+                        // 🔥 Corregido: Usamos removeFromCart y updateQuantity
                         onRemove: () => cart.removeFromCart(item.product.id),
-                        onQtyChanged: (val) =>
-                            cart.updateQuantity(item.product.id, val),
+                        onQtyChanged: (val) => cart.updateQuantity(item.product.id, val),
                       );
                     },
                   ),
                 ),
-                _buildOrderSummary(
-                  cart.totalAmount,
-                ), // Le pasamos el total del Provider
+                _buildOrderSummary(cart.totalAmount),
               ],
             ),
     );
@@ -133,7 +127,7 @@ class _CartScreenState extends State<CartScreen> {
             width: double.infinity,
             height: 55,
             child: ElevatedButton(
-              onPressed: _isDeleteMode
+              onPressed: _isDeleteMode || total <= 0
                   ? null
                   : () => context.push('/checkout', extra: total),
               style: ElevatedButton.styleFrom(
@@ -162,11 +156,7 @@ class _CartScreenState extends State<CartScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.shopping_cart_outlined,
-            size: 100,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.shopping_cart_outlined, size: 100, color: Colors.grey[300]),
           const Text(
             "Tu carrito está vacío",
             style: TextStyle(fontSize: 20, color: Colors.black54),
@@ -176,15 +166,10 @@ class _CartScreenState extends State<CartScreen> {
             onPressed: () => context.pop(),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
             ),
-            child: const Text(
-              "Ir al Menú",
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
+            child: const Text("Ir al Menú", style: TextStyle(color: Colors.white, fontSize: 16)),
           ),
         ],
       ),
@@ -193,7 +178,7 @@ class _CartScreenState extends State<CartScreen> {
 }
 
 class CartItemWidget extends StatelessWidget {
-  final ProductModel product; // CAMBIADO: Ahora usa tu modelo real
+  final ProductModel product;
   final int qty;
   final bool isDeleteMode;
   final VoidCallback onRemove;
@@ -210,15 +195,11 @@ class CartItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+    return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: isDeleteMode
-            ? Border.all(color: Colors.red.shade100, width: 2)
-            : null,
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
         ],
@@ -226,20 +207,20 @@ class CartItemWidget extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 70,
-            height: 70,
+            width: 70, height: 70,
             decoration: BoxDecoration(
               color: Colors.grey[100],
               borderRadius: BorderRadius.circular(12),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                product.imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) =>
-                    const Icon(Icons.fastfood, color: Colors.black45),
-              ),
+              child: product.imageUrl != null 
+                ? Image.network(
+                    product.imageUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (c, e, s) => const Icon(Icons.fastfood, color: Colors.black45),
+                  )
+                : const Icon(Icons.fastfood, color: Colors.black45),
             ),
           ),
           const SizedBox(width: 16),
@@ -247,14 +228,8 @@ class CartItemWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  product.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  "S/${product.price.toStringAsFixed(2)}",
-                  style: const TextStyle(color: Colors.green),
-                ),
+                Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text("S/${product.price.toStringAsFixed(2)}", style: const TextStyle(color: Colors.green)),
               ],
             ),
           ),
@@ -267,15 +242,12 @@ class CartItemWidget extends StatelessWidget {
             Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () => qty > 1 ? onQtyChanged(qty - 1) : onRemove(),
+                  icon: const Icon(Icons.remove_circle_outline, size: 20),
+                  onPressed: () => onQtyChanged(qty - 1),
                 ),
-                Text(
-                  '$qty',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
+                Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold)),
                 IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
+                  icon: const Icon(Icons.add_circle_outline, size: 20),
                   onPressed: () => onQtyChanged(qty + 1),
                 ),
               ],

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_application_zampa/providers/cart_provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 // Importación de modelos
 import 'models/product_model.dart';
+
+// Importación de providers
+import 'providers/cart_provider.dart';
+import 'providers/auth_provider.dart';
 
 // Importación de pantallas
 import 'login_screen.dart';
@@ -28,7 +31,16 @@ import 'feedback_screen.dart';
 import 'about_us_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  // Envolvemos MyApp en MultiProvider desde el arranque
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 // Configuración de Rutas con GoRouter
@@ -140,21 +152,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // El MultiProvider envuelve a MaterialApp.router para que el contexto sea global
-    return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (_) => CartProvider())],
-      child: MaterialApp.router(
-        title: 'Zampa App',
-        debugShowCheckedModeBanner: false,
-        routerConfig: _router,
-        theme: ThemeData(
-          useMaterial3: true,
-          primaryColor: Colors.black,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF2E7D32), // El verde de Zampa
-          ),
-          scaffoldBackgroundColor: Colors.white,
+    // Ya no necesitamos envolver aquí porque lo hicimos en el main()
+    return MaterialApp.router(
+      title: 'Zampa App',
+      debugShowCheckedModeBanner: false,
+      routerConfig: _router,
+      theme: ThemeData(
+        useMaterial3: true,
+        primaryColor: Colors.black,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2E7D32), // El verde de Zampa
         ),
+        scaffoldBackgroundColor: Colors.white,
       ),
     );
   }
