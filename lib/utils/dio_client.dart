@@ -17,16 +17,13 @@ class DioClient {
       ),
     );
 
-    // EL VIGILANTE DE SEGURIDAD
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
           final prefs = await SharedPreferences.getInstance();
 
-          // 🔥 Buscamos exactamente el 'auth_token' que guardaste en el login
           final token = prefs.getString('auth_token');
 
-          // Si existe, lo adjuntamos como pase VIP
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }

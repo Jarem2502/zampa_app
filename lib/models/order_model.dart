@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'order_detail_model.dart'; // 🔥 Importamos el nuevo modelo de detalle
+import 'order_detail_model.dart';
 
 class OrderModel {
   final int id;
@@ -9,7 +9,7 @@ class OrderModel {
   final String paymentMethod;
   final String orderType;
   final String createdAt;
-  final List<OrderDetailModel> items; // 🔥 CAMBIO: Ya no es String, ahora es Lista
+  final List<OrderDetailModel> items;
 
   OrderModel({
     required this.id,
@@ -23,17 +23,17 @@ class OrderModel {
   });
 
   factory OrderModel.fromJson(Map<String, dynamic> json) {
-    // 🔥 Lógica para convertir el JSON de la base de datos en objetos Dart
     List<OrderDetailModel> productList = [];
-    
+
     if (json['products'] != null) {
       try {
-        // En tu SQL, el campo 'products' se guarda como un JSON string
-        final List<dynamic> decodedData = json['products'] is String 
-            ? jsonDecode(json['products']) 
+        final List<dynamic> decodedData = json['products'] is String
+            ? jsonDecode(json['products'])
             : json['products'];
-            
-        productList = decodedData.map((item) => OrderDetailModel.fromJson(item)).toList();
+
+        productList = decodedData
+            .map((item) => OrderDetailModel.fromJson(item))
+            .toList();
       } catch (e) {
         print("Error al procesar los productos del pedido #${json['id']}: $e");
       }
@@ -47,7 +47,7 @@ class OrderModel {
       paymentMethod: json['payment_method'] ?? '',
       orderType: json['order_type'] ?? 'Delivery',
       createdAt: json['created_at'] ?? '',
-      items: productList, // 🔥 Lista de objetos lista para usar en la UI
+      items: productList,
     );
   }
 }

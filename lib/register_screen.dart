@@ -32,6 +32,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text.trim();
     final repeatPassword = _repeatPasswordController.text.trim();
 
+    // 1. Validar campos vacíos
     if (name.isEmpty ||
         email.isEmpty ||
         password.isEmpty ||
@@ -42,13 +43,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    if (password != repeatPassword) {
+    // 2. Validar formato de correo básico
+    if (!email.contains('@') || !email.contains('.')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Las contraseñas no coinciden')),
+        const SnackBar(content: Text('Ingresa un correo electrónico válido')),
       );
       return;
     }
 
+    // 3. Validar longitud de contraseña
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -58,45 +61,43 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
+    // 4. Validar que contraseñas coincidan
+    if (password != repeatPassword) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Las contraseñas no coinciden')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    try {
-      // Llamada única al backend en Hostinger
-      bool success = await _authService.register(name, email, password);
+    // Llamada al servicio
+    bool success = await _authService.register(name, email, password);
 
-      if (success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Cuenta creada con éxito. Ya puedes iniciar sesión.',
-              ),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Limpiamos controladores antes de navegar
-          _nameController.clear();
-          _emailController.clear();
-          _passwordController.clear();
-          _repeatPasswordController.clear();
+    setState(() => _isLoading = false);
 
-          context.go('/');
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Error al registrar. El correo podría ya estar en uso o hubo un problema de red.',
-              ),
-              backgroundColor: Colors.red,
+    if (success && mounted) {
+      // Cuando configuremos Laravel, aquí redirigiremos a la pantalla de Verificación OTP
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '¡Cuenta creada! Próximamente te pediremos validar tu correo.',
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+      context.go('/'); // Volvemos al login por ahora
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Error al crear cuenta. El correo podría ya estar registrado.',
             ),
-          );
-        }
+            backgroundColor: Colors.red,
+          ),
+        );
       }
-    } finally {
-      // Nos aseguramos de liberar el estado de carga pase lo que pase
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -108,18 +109,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          buildLabel('Nombres *'),
+          buildLabel('Nombre completo *'),
           TextField(
             controller: _nameController,
             decoration: zampaInputDecoration(),
+            keyboardType: TextInputType.name,
+            textCapitalization: TextCapitalization.words,
           ),
           const SizedBox(height: 20),
 
           buildLabel('Correo electrónico *'),
           TextField(
             controller: _emailController,
-            keyboardType: TextInputType.emailAddress,
             decoration: zampaInputDecoration(),
+            keyboardType: TextInputType.emailAddress,
           ),
           const SizedBox(height: 20),
 

@@ -2,13 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../utils/dio_client.dart';
-import '../models/user_model.dart'; // 🔥 Importamos tu nuevo modelo
+import '../models/user_model.dart';
 
 class AuthService {
   final Dio _dio = DioClient.dio;
 
-  // --- INICIAR SESIÓN TRADICIONAL ---
-  // Ahora devuelve un UserModel? en lugar de bool
+  // --- 1. LOGIN TRADICIONAL ---
   Future<UserModel?> login(String email, String password) async {
     try {
       final response = await _dio.post(
@@ -22,12 +21,10 @@ class AuthService {
         await prefs.setString('auth_token', token);
 
         final userData = response.data['user'] ?? response.data;
-        
+
         if (userData != null && userData['id'] != null) {
           await prefs.setString('user_id', userData['id'].toString());
         }
-
-        // 🔥 Convertimos el JSON crudo en un objeto Dart elegante
         return UserModel.fromJson(userData, authToken: token);
       }
       return null;
@@ -37,18 +34,14 @@ class AuthService {
     }
   }
 
-  // --- LOGIN CON GOOGLE ---
-  // También devuelve UserModel?
+  // --- 2. LOGIN CON GOOGLE ---
   Future<UserModel?> loginWithGoogle() async {
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId: '834264942658-fai8mqcfefifegt30bg7kh4fm2lvm95e.apps.googleusercontent.com',
-      );
-
+      final GoogleSignIn googleSignIn = GoogleSignIn();
       await googleSignIn.signOut();
 
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) return null; // El usuario canceló
+      if (googleUser == null) return null;
 
       final response = await _dio.post(
         '/auth/google',
@@ -67,42 +60,120 @@ class AuthService {
         if (userData != null && userData['id'] != null) {
           await prefs.setString('user_id', userData['id'].toString());
         }
-
-        // 🔥 Retornamos el modelo listo para usar
         return UserModel.fromJson(userData, authToken: token);
       }
       return null;
     } catch (e) {
-      print("Error detallado en Google Login: $e");
+      print("Error en Google Login: $e");
       return null;
     }
   }
 
-  // --- REGISTRO ---
-  // Este se puede quedar como bool porque generalmente después de registrar
-  // mandas al usuario a la pantalla de login.
+  // --- 3. REGISTRO ---
   Future<bool> register(String username, String email, String password) async {
     try {
       final response = await _dio.post(
         '/register',
         data: {'username': username, 'email': email, 'password': password},
       );
-      print("Registro exitoso en servidor: ${response.data}");
-      return true;
-    } on DioException catch (e) {
-      if (e.response != null) {
-        print("Error del servidor (${e.response?.statusCode}): ${e.response?.data}");
-      } else {
-        print("Error de conexión: ${e.message}");
-      }
-      return false;
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
-      print("Error inesperado: $e");
       return false;
     }
   }
 
-  // --- CERRAR SESIÓN ---
+  // --- 4. RECUPERACIÓN DE CONTRASEÑA (CÓDIGO DE 6 DÍGITOS) ---
+  Future<bool> sendRecoveryCode(String email) async {
+    try {
+      final response = await _dio.post(
+        '/password/email',
+        data: {'email': email},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> verifyRecoveryCode(String email, String code) async {
+    try {
+      final response = await _dio.post(
+        '/password/verify-code',
+        data: {'email': email, 'code': code},
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> resetPassword(
+    String email,
+    String code,
+    String newPassword,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/password/reset',
+        data: {
+          'email': email,
+          'code': code,
+          'password': newPassword,
+          'password_confirmation': newPassword,
+        },
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // --- ACTUALIZAR PERFIL (CON FOTO OPCIONAL) ---
+  Future<bool> updateProfile(
+    String newName,
+    String newPassword, {
+    String? imagePath,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+
+      // Usamos FormData para poder mandar archivos pesados como fotos
+      FormData formData = FormData.fromMap({
+        '_method':
+            'PUT', // Laravel necesita esto cuando enviamos archivos con método POST
+        'username': newName,
+      });
+
+      if (newPassword.isNotEmpty) {
+        formData.fields.add(MapEntry('password', newPassword));
+      }
+
+      // Si el usuario seleccionó una imagen, la adjuntamos
+      if (imagePath != null) {
+        formData.files.add(
+          MapEntry(
+            'avatar',
+            await MultipartFile.fromFile(imagePath, filename: 'perfil.jpg'),
+          ),
+        );
+      }
+
+      // Usamos post porque enviar archivos con put en FormData suele dar problemas en algunos servidores
+      final response = await _dio.post('/users/$userId', data: formData);
+
+      if (response.statusCode == 200) {
+        await prefs.setString('user_name', newName);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("Error actualizando perfil: $e");
+      return false;
+    }
+  }
+
+  // --- 5. LOGOUT ---
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('auth_token');

@@ -31,7 +31,6 @@ import 'feedback_screen.dart';
 import 'about_us_screen.dart';
 
 void main() {
-  // Envolvemos MyApp en MultiProvider desde el arranque
   runApp(
     MultiProvider(
       providers: [
@@ -43,7 +42,6 @@ void main() {
   );
 }
 
-// Configuración de Rutas con GoRouter
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   routes: [
@@ -52,22 +50,33 @@ final GoRouter _router = GoRouter(
       path: '/registro',
       builder: (context, state) => const RegisterScreen(),
     ),
+
+    // 🔥 RUTAS DE RECUPERACIÓN ACTUALIZADAS
     GoRoute(
       path: '/recuperar',
       builder: (context, state) => const RecoveryScreen(),
     ),
     GoRoute(
       path: '/verificacion',
-      builder: (context, state) => const VerificationScreen(),
+      builder: (context, state) {
+        final email = state.extra as String? ?? '';
+        return VerificationScreen(email: email); // Recibe el correo
+      },
     ),
     GoRoute(
       path: '/nueva-password',
-      builder: (context, state) => const NewPasswordScreen(),
+      builder: (context, state) {
+        final data = state.extra as Map<String, String>? ?? {};
+        return NewPasswordScreen(
+          email: data['email'] ?? '',
+          code: data['code'] ?? '',
+        ); // Recibe correo y código
+      },
     ),
+
     GoRoute(path: '/menu', builder: (context, state) => const MenuScreen()),
     GoRoute(path: '/carrito', builder: (context, state) => const CartScreen()),
 
-    // Ruta Detalle de Producto
     GoRoute(
       path: '/detalle',
       builder: (context, state) {
@@ -152,7 +161,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Ya no necesitamos envolver aquí porque lo hicimos en el main()
     return MaterialApp.router(
       title: 'Zampa App',
       debugShowCheckedModeBanner: false,
@@ -160,9 +168,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         primaryColor: Colors.black,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32), // El verde de Zampa
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
         scaffoldBackgroundColor: Colors.white,
       ),
     );

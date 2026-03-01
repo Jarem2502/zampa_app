@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -9,40 +11,54 @@ class AdminLoginScreen extends StatefulWidget {
 }
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
-  final TextEditingController _userController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passController = TextEditingController();
   bool _isLoading = false;
 
   void _handleAdminLogin() async {
     FocusScope.of(context).unfocus();
 
-    if (_userController.text.isEmpty || _passController.text.isEmpty) {
+    if (_emailController.text.isEmpty || _passController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor ingrese usuario y contraseña")),
+        const SnackBar(content: Text("Por favor ingrese correo y contraseña")),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(seconds: 2));
+    final authProvider = context.read<AuthProvider>();
 
-    if (mounted) {
-      if (_userController.text.trim() == 'admin' &&
-          _passController.text.trim() == 'zampa123') {
+    // 1. Intentamos loguear con el backend real
+    bool success = await authProvider.login(
+      _emailController.text.trim(),
+      _passController.text.trim(),
+    );
 
-        context.go('/admin-dashboard'); 
-        
+    setState(() => _isLoading = false);
+
+    if (success && mounted) {
+      // 2. Verificamos si el usuario de la BD tiene el rol 1 (Administrador)
+      if (authProvider.isAdmin) {
+        context.go('/admin-dashboard');
       } else {
-        setState(() {
-          _isLoading = false;
-        });
+        // Si es un cliente normal queriendo entrar al panel admin, lo bloqueamos
+        await authProvider.logout();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text("Credenciales incorrectas. Acceso denegado."),
-            backgroundColor: Colors.red[700],
+          const SnackBar(
+            content: Text(
+              "Acceso Denegado: No tienes permisos de Administrador",
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Credenciales incorrectas o usuario no existe"),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -52,20 +68,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () {
-            context.pop(); 
-          },
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () => context.pop(),
         ),
-        title: const Text(
-          "Acceso Administrativo",
-          style: TextStyle(color: Colors.white),
-        ),
-        centerTitle: true,
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -73,43 +83,28 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.black12,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.black, width: 2),
-                ),
-                child: const Icon(
-                  Icons.admin_panel_settings,
-                  size: 60,
-                  color: Colors.black,
-                ),
+              const Icon(
+                Icons.admin_panel_settings,
+                size: 80,
+                color: Colors.black,
               ),
-              const SizedBox(height: 30),
-
+              const SizedBox(height: 20),
               const Text(
-                "ZAMPA ADMIN",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 2,
-                ),
+                "Acceso Restringido",
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
               const Text(
-                "Ingresa tus credenciales para gestionar la app.",
-                textAlign: TextAlign.center,
+                "Solo personal autorizado de Zampa",
                 style: TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 40),
+
               TextField(
-                controller: _userController,
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
-                  labelText: "Usuario",
-                  prefixIcon: const Icon(Icons.person_outline),
-                  filled: true,
-                  fillColor: Colors.white,
+                  labelText: "Correo de Administrador",
+                  prefixIcon: const Icon(Icons.email_outlined),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -123,8 +118,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 decoration: InputDecoration(
                   labelText: "Contraseña",
                   prefixIcon: const Icon(Icons.lock_outline),
-                  filled: true,
-                  fillColor: Colors.white,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

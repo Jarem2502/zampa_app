@@ -2,31 +2,39 @@ class UserModel {
   final int id;
   final String name;
   final String email;
-  final String? token; // Opcional, solo lo llenamos al hacer login
+  final int? roleId;
+  final String? token;
+  final String? avatar;
 
   UserModel({
     required this.id,
     required this.name,
     required this.email,
+    this.roleId,
     this.token,
+    this.avatar,
   });
 
-  // Factory constructor para mapear desde el JSON de Laravel
   factory UserModel.fromJson(Map<String, dynamic> json, {String? authToken}) {
     return UserModel(
-      id: json['id'],
+      id: json['id'] ?? 0,
       name: json['username'] ?? json['name'] ?? 'Usuario',
       email: json['email'] ?? '',
+      roleId: json['role_id'],
       token: authToken,
+      avatar: json['avatar'] != null
+          ? 'https://zampa.pro-cafes.com/storage/${json['avatar']}'
+          : null,
     );
   }
 
-  // Para enviar datos a la API si es necesario
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
+      'username': name,
       'email': email,
+      'role_id': roleId,
+      'avatar': avatar,
     };
   }
 }

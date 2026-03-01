@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import '../services/location_service.dart'; // 🔥 Importamos tu nuevo servicio
+import '../services/location_service.dart';
+import '../services/product_service.dart';
+import '../models/product_model.dart';
+import 'package:go_router/go_router.dart';
 
 class TabPromotions extends StatefulWidget {
   const TabPromotions({super.key});
@@ -11,199 +14,183 @@ class TabPromotions extends StatefulWidget {
 
 class _TabPromotionsState extends State<TabPromotions> {
   final LocationService _locationService = LocationService();
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _hasPermission = false;
   bool _isInCity = false;
-  String _currentCity = "Detectando...";
+  List<ProductModel> _promoProducts = [];
 
-  // Función real para obtener ubicación
-  Future<void> _handleLocationPermission() async {
-    setState(() => _isLoading = true);
+  @override
+  void initState() {
+    super.initState();
+    _initData();
+  }
 
+  Future<void> _initData() async {
+    // 1. Verificamos GPS
     Position? position = await _locationService.getCurrentLocation();
 
     if (position != null) {
-      bool inCity = _locationService.isUserInCity(position);
-      setState(() {
-        _hasPermission = true;
-        _isInCity = inCity;
-        _currentCity = inCity ? "Huancayo, Centro" : "Fuera de zona de servicio";
-        _isLoading = false;
-      });
-    } else {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No se pudo obtener la ubicación. Revisa tus permisos.")),
-        );
-      }
+      _hasPermission = true;
+      _isInCity = _locationService.isUserInCity(position);
     }
+
+    // 2. Si está en la ciudad, descargamos los productos en oferta
+    if (_isInCity) {
+      final allProducts = await ProductService().getProducts();
+      // Filtramos solo los que el Admin marcó como "Oferta"
+      _promoProducts = allProducts.where((p) => p.isPromo).toList();
+    }
+
+    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.green));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.green),
+      );
     }
 
-    return _hasPermission ? _buildPromotionsList() : _buildPermissionRequest();
-  }
+    if (!_hasPermission) {
+      return const Center(
+        child: Text(
+          "Necesitamos acceso a tu ubicación para mostrarte ofertas exclusivas.",
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
 
-  Widget _buildPermissionRequest() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.location_on_outlined, size: 80, color: Colors.green[200]),
-          const SizedBox(height: 20),
-          const Text(
-            "Ofertas Exclusivas",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-          ),
-          const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
-            child: Text(
-              "Zampa ofrece promociones especiales según tu ubicación en la ciudad.",
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+    if (!_isInCity) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_off, size: 80, color: Colors.grey[300]),
+            const SizedBox(height: 16),
+            const Text(
+              "¡Oh no!",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton.icon(
-            onPressed: _handleLocationPermission, // 🔥 Ahora llama a la lógica real
-            icon: const Icon(Icons.my_location, color: Colors.white),
-            label: const Text("Verificar Ubicación", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPromotionsList() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _buildLocationBanner(),
-        
-        // --- LÓGICA DINÁMICA ---
-        if (_isInCity) ...[
-          const Text("Ofertas Relámpago en Huancayo ⚡", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 15),
-          _buildPromoCard(
-            title: "Pack Zampa Familiar",
-            description: "2 Hamburguesas Royal + 2 Gaseosas + Papas",
-            oldPrice: "S/ 45.00",
-            newPrice: "S/ 32.90",
-            color: Colors.orange.shade50,
-            icon: Icons.lunch_dining,
-          ),
-          _buildPromoCard(
-            title: "Zampa 2x1 en Frappés",
-            description: "Aplica en Oreo y Moka (Solo Tienda)",
-            oldPrice: "S/ 24.00",
-            newPrice: "S/ 12.00",
-            color: Colors.brown.shade50,
-            icon: Icons.local_cafe,
-          ),
-        ] else ...[
-          _buildOutOfZoneMessage(),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildLocationBanner() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: _isInCity ? Colors.green[50] : Colors.red[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _isInCity ? Colors.green.shade200 : Colors.red.shade200),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _isInCity ? Icons.location_on : Icons.location_off, 
-            size: 18, 
-            color: _isInCity ? Colors.green : Colors.red
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              "Ubicación: $_currentCity", 
-              style: TextStyle(
-                color: _isInCity ? Colors.green[800] : Colors.red[800], 
-                fontWeight: FontWeight.bold, 
-                fontSize: 13
+            const Padding(
+              padding: EdgeInsets.all(20.0),
+              child: Text(
+                "Las ofertas son exclusivas para clientes en la zona de Huancayo. ¡Visítanos pronto!",
+                textAlign: TextAlign.center,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOutOfZoneMessage() {
-    return Column(
-      children: [
-        const SizedBox(height: 40),
-        Icon(Icons.sentiment_dissatisfied, size: 60, color: Colors.grey[400]),
-        const SizedBox(height: 16),
-        const Text(
-          "Lo sentimos, Jarem",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ],
         ),
-        const Text(
-          "Estas promociones solo están disponibles para usuarios dentro de Huancayo.",
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey),
-        ),
-      ],
-    );
-  }
+      );
+    }
 
-  Widget _buildPromoCard({required String title, required String description, required String oldPrice, required String newPrice, required Color color, required IconData icon}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+    if (_promoProducts.isEmpty) {
+      return const Center(
+        child: Text("No hay promociones activas en este momento."),
+      );
+    }
+
+    return ListView.builder(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 60, height: 60,
-            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: Colors.black54),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text(description, style: const TextStyle(color: Colors.grey, fontSize: 11), maxLines: 1),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    Text(oldPrice, style: const TextStyle(decoration: TextDecoration.lineThrough, color: Colors.grey, fontSize: 12)),
-                    const SizedBox(width: 8),
-                    Text(newPrice, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16)),
-                  ],
-                ),
-              ],
+      itemCount: _promoProducts.length,
+      itemBuilder: (context, index) {
+        final prod = _promoProducts[index];
+        return _buildPromoCard(prod);
+      },
+    );
+  }
+
+  Widget _buildPromoCard(ProductModel product) {
+    return InkWell(
+      onTap: () => context.push('/detalle', extra: product),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.red.shade100, width: 2),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: product.imageUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        product.imageUrl!,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : const Icon(Icons.fastfood, color: Colors.black26),
             ),
-          ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      "OFERTA GPS",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    product.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Row(
+                    children: [
+                      Text(
+                        "S/${product.price.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          decoration: TextDecoration.lineThrough,
+                          color: Colors.grey,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "S/${product.promoPrice.toStringAsFixed(2)}",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

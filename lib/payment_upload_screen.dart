@@ -1,10 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // 🔥 Importante para leer el ID del usuario
 import '../services/order_service.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
 
 class PaymentUploadScreen extends StatefulWidget {
   final double totalAmount;
@@ -33,7 +34,7 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70,
+      imageQuality: 70, // Comprimimos un poco para no saturar Hostinger
     );
 
     if (image != null) {
@@ -43,191 +44,220 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
     }
   }
 
-  Future<void> _handleSendOrder() async {
-    if (_pickedFile == null) return;
+  Future<void> _sendOrder() async {
+    if (_pickedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Por favor, sube la captura de tu pago")),
+      );
+      return;
+    }
 
     setState(() => _isSending = true);
 
-    // 1. LEEMOS LOS BYTES DE LA IMAGEN
-    final imageBytes = await _pickedFile!.readAsBytes();
+    // 1. Obtenemos los proveedores (Carrito y Usuario)
+    final cart = context.read<CartProvider>();
+    final auth = context.read<AuthProvider>();
 
-    // 🔥 2. OBTENEMOS EL ID REAL DEL USUARIO LOGUEADO
-    final prefs = await SharedPreferences.getInstance();
-    // Intenta buscar 'user_id' o 'id'. Si por alguna razón está vacío, usa '1' como respaldo para que no explote.
-    final dynamic savedId = prefs.get('user_id') ?? prefs.get('id');
-    final String realUserId = savedId != null ? savedId.toString() : '1';
+    // 2. Transformamos el carrito en un JSON que Laravel entienda
+    final productsJson = cart.items
+        .map(
+          (item) => {
+            'product_id': item.product.id,
+            'name': item.product.name,
+            'quantity': item.quantity,
+            'price': item.product.isPromo
+                ? item.product.promoPrice
+                : item.product.price,
+          },
+        )
+        .toList();
 
-    // 3. PREPARAMOS LA DATA CON EL ID DINÁMICO
+    // 3. Juntamos toda la información
     final orderData = {
-      'user_id': realUserId, // Ahora usa el ID real del teléfono/navegador
+      'user_id': auth.user?.id ?? 0, // ID del usuario real
       'total': widget.totalAmount,
-      'payment_method': widget.paymentMethod,
-      'order_type': widget.extraData['tipo_pedido'],
-      'client_name': widget.clientName,
-      'dni': widget.extraData['dni'],
-      'phone': widget.extraData['telefono'],
-      'products': widget.extraData['productos'],
+      'payment_method': widget.extraData['metodo'],
+      'order_type': widget.extraData['order_type'],
+      'client_name': widget.extraData['nombre'],
+      'dni': widget.extraData['dni_ruc'],
+      'phone': widget.extraData['phone'],
+      'products': jsonEncode(productsJson), // Convertimos la lista a texto
     };
 
-    // 4. ENVIAMOS AL SERVICIO
+    // 4. Leemos la imagen como bytes
+    final bytes = await _pickedFile!.readAsBytes();
+
+    // 5. Enviamos todo a Hostinger
     bool success = await _orderService.sendOrder(
       orderData: orderData,
       imagePath: _pickedFile!.path,
-      imageBytes: imageBytes,
+      imageBytes: bytes,
     );
 
     setState(() => _isSending = false);
 
-    if (success) {
-      context.read<CartProvider>().clearCart();
+    if (success && mounted) {
+      cart.clearCart(); // ¡Vaciamos el carrito porque ya compró!
       _showSuccessDialog(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Error al enviar el pedido. Verifica tu conexión con Hostinger.",
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Hubo un error al enviar el pedido. Intenta nuevamente.",
+            ),
+            backgroundColor: Colors.red,
           ),
-        ),
-      );
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isYape = widget.paymentMethod == 'yape' || widget.paymentMethod == '1';
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => context.pop(),
         ),
         title: const Text(
-          "Realizar Pago",
+          "Comprobante",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
-        centerTitle: true,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            const Text(
+              "Ya casi terminamos",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Por favor, transfiere el total de S/${widget.totalAmount.toStringAsFixed(2)} a nuestro número Yape o Plin y sube la captura de pantalla.",
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black87, fontSize: 15),
+            ),
+            const SizedBox(height: 30),
+
+            // Número a yapear (Simulado)
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
               decoration: BoxDecoration(
-                color: isYape ? Colors.purple[50] : Colors.blue[50],
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isYape ? Colors.purple.shade200 : Colors.blue.shade200,
-                ),
+                color: Colors.deepPurple[50],
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: Colors.deepPurple.shade200),
               ),
-              child: Column(
+              child: const Column(
                 children: [
-                  Icon(
-                    isYape ? Icons.qr_code_2 : Icons.account_balance,
-                    size: 50,
-                    color: isYape ? Colors.purple : Colors.blue,
-                  ),
-                  const SizedBox(height: 16),
                   Text(
-                    isYape
-                        ? "Escanea el QR o Yapea al:"
-                        : "Transfiere al número de cuenta:",
-                    style: const TextStyle(fontSize: 14, color: Colors.black54),
+                    "Número Yape / Plin",
+                    style: TextStyle(color: Colors.deepPurple),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 5),
                   Text(
-                    isYape ? "987 654 321" : "BCP: 191-12345678-0-99",
+                    "987 654 321",
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: isYape ? Colors.purple : Colors.blue[900],
+                      color: Colors.deepPurple,
                     ),
+                  ),
+                  Text(
+                    "A nombre de: Zampa Café",
+                    style: TextStyle(fontSize: 12, color: Colors.deepPurple),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 30),
-            const Text(
-              "Monto Total a Pagar",
-              style: TextStyle(color: Colors.grey),
-            ),
-            Text(
-              "S/${widget.totalAmount.toStringAsFixed(2)}",
-              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 30),
-            const Divider(),
-            const SizedBox(height: 20),
+
+            const SizedBox(height: 40),
+
+            // Área para subir la imagen
             GestureDetector(
-              onTap: _isSending ? null : _pickImage,
+              onTap: _pickImage,
               child: Container(
-                height: 200,
+                height: 250,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: _pickedFile != null
-                      ? Colors.green[50]
-                      : Colors.grey[100],
-                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: _pickedFile != null
-                        ? Colors.green
-                        : Colors.grey.shade400,
+                    color: Colors.grey.shade300,
+                    style: BorderStyle.solid,
                     width: 2,
                   ),
                 ),
                 child: _pickedFile != null
                     ? ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(18),
+                        // En web a veces Image.network funciona mejor para archivos locales en memoria
                         child: Image.network(
                           _pickedFile!.path,
                           fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => const Icon(
+                            Icons.image,
+                            size: 50,
+                            color: Colors.grey,
+                          ),
                         ),
                       )
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.cloud_upload_outlined,
-                            color: Colors.grey[600],
-                            size: 40,
+                            Icons.add_photo_alternate_outlined,
+                            size: 60,
+                            color: Colors.grey[400],
                           ),
                           const SizedBox(height: 10),
                           const Text(
-                            "Subir captura del pago",
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            "Toca para subir captura",
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
               ),
             ),
+
             const SizedBox(height: 40),
+
+            // Botón de Confirmación
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
-                onPressed: (_pickedFile == null || _isSending)
-                    ? null
-                    : _handleSendOrder,
+                onPressed: _isSending ? null : _sendOrder,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _pickedFile != null
-                      ? Colors.black
-                      : Colors.grey,
+                  backgroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
                 child: _isSending
-                    ? const CircularProgressIndicator(color: Colors.white)
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
                     : const Text(
-                        "Enviar Pedido",
+                        "Confirmar Pedido",
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -256,19 +286,27 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              "Gracias ${widget.clientName}, hemos recibido tu comprobante.",
+              "Gracias ${widget.clientName}, tu comprobante será validado por caja en breve.",
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () => context.go('/menu'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF81C784),
-                shape: const StadiumBorder(),
-              ),
-              child: const Text(
-                "Volver al Menú",
-                style: TextStyle(color: Colors.white),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  context.pop(); // Cierra el diálogo
+                  context.go('/menu'); // Vuelve al inicio limpio
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF81C784),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  "Volver al Menú",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
