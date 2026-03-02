@@ -8,6 +8,7 @@ import 'models/product_model.dart';
 // Importación de providers
 import 'providers/cart_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/admin_provider.dart';
 
 // Importación de pantallas
 import 'login_screen.dart';
@@ -36,6 +37,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: const MyApp(),
     ),
@@ -45,13 +47,15 @@ void main() {
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   routes: [
+    // El Login es la ruta raíz '/'
     GoRoute(path: '/', builder: (context, state) => const LoginScreen()),
+
     GoRoute(
       path: '/registro',
       builder: (context, state) => const RegisterScreen(),
     ),
 
-    // 🔥 RUTAS DE RECUPERACIÓN ACTUALIZADAS
+    // RUTAS DE RECUPERACIÓN
     GoRoute(
       path: '/recuperar',
       builder: (context, state) => const RecoveryScreen(),
@@ -60,7 +64,7 @@ final GoRouter _router = GoRouter(
       path: '/verificacion',
       builder: (context, state) {
         final email = state.extra as String? ?? '';
-        return VerificationScreen(email: email); // Recibe el correo
+        return VerificationScreen(email: email);
       },
     ),
     GoRoute(
@@ -70,7 +74,7 @@ final GoRouter _router = GoRouter(
         return NewPasswordScreen(
           email: data['email'] ?? '',
           code: data['code'] ?? '',
-        ); // Recibe correo y código
+        );
       },
     ),
 

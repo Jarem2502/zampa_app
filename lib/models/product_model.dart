@@ -7,6 +7,9 @@ class ProductModel {
   final int categoryId;
   final bool isPromo;
   final double promoPrice;
+  final String? promoName; // 🔥 NUEVO
+  final String? promoStart; // 🔥 NUEVO
+  final String? promoEnd; // 🔥 NUEVO
 
   ProductModel({
     required this.id,
@@ -17,11 +20,13 @@ class ProductModel {
     required this.categoryId,
     this.isPromo = false,
     this.promoPrice = 0.0,
+    this.promoName,
+    this.promoStart,
+    this.promoEnd,
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
     const String baseUrl = 'https://zampa.pro-cafes.com/storage/';
-
     return ProductModel(
       id: json['id'] ?? 0,
       name: json['name'] ?? 'Producto',
@@ -35,6 +40,9 @@ class ProductModel {
           json['is_promo'] == '1',
       promoPrice:
           double.tryParse(json['promo_price']?.toString() ?? '0') ?? 0.0,
+      promoName: json['promo_name'],
+      promoStart: json['promo_start'],
+      promoEnd: json['promo_end'],
     );
   }
 }

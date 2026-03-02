@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'services/admin_service.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import 'providers/admin_provider.dart';
+import 'providers/auth_provider.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -10,73 +13,150 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  String _selectedFilter = 'Diario';
   final List<String> _filterOptions = ['Diario', 'Semanal', 'Mensual'];
-
-  bool _isLoading = true;
-  double _totalVentas = 0.0;
-  int _totalPedidos = 0;
 
   @override
   void initState() {
     super.initState();
-    _fetchStats();
+    // Carga inicial de datos al entrar al panel
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AdminProvider>().updateStats('Diario');
+    });
   }
 
-  Future<void> _fetchStats() async {
-    setState(() => _isLoading = true);
+  // 🔥 Función corregida para cerrar sesión y redirigir a la raíz '/'
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Cerrar Sesión",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          "¿Estás seguro de que quieres salir del panel de administración?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Cierra el diálogo
+              context.read<AuthProvider>().logout(); // Limpia token y sesión
 
-    final stats = await AdminService().getStats(_selectedFilter);
+              // 🔥 CORRECCIÓN: Según tu main.dart, el path del Login es '/'
+              context.go('/');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text("Salir", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
-    if (mounted) {
-      setState(() {
-        _totalVentas = stats['ventas'];
-        _totalPedidos = stats['pedidos'];
-        _isLoading = false;
-      });
+  // 📅 Selector de rango de fechas personalizado
+  Future<void> _selectCustomRange(BuildContext context) async {
+    final adminProv = context.read<AdminProvider>();
+
+    final DateTimeRange? picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      helpText: 'SELECCIONA RANGO DE VENTAS',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.black,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      String start = DateFormat('yyyy-MM-dd').format(picked.start);
+      String end = DateFormat('yyyy-MM-dd').format(picked.end);
+      adminProv.updateStatsCustom(start, end);
     }
   }
 
-  Color get _currentThemeColor {
-    if (_selectedFilter == 'Diario') return Colors.blue;
-    if (_selectedFilter == 'Semanal') return Colors.purple;
-    return Colors.orange;
+  Color _getThemeColor(String filter) {
+    if (filter == 'Diario') return Colors.blue;
+    if (filter == 'Semanal') return Colors.purple;
+    if (filter == 'Mensual') return Colors.orange;
+    return Colors.teal;
   }
 
   @override
   Widget build(BuildContext context) {
+    final adminProvider = context.watch<AdminProvider>();
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        // Icono de Logout que abre el diálogo de confirmación
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
+          icon: const Icon(Icons.logout, color: Colors.redAccent),
+          onPressed: () => _showLogoutDialog(context),
         ),
         title: const Text(
           "Panel Administrativo",
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month, color: Colors.black),
+            onPressed: () => _selectCustomRange(context),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "Resumen de Ventas",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Resumen de Ventas",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                if (adminProvider.currentFilter == 'Personalizado')
+                  Text(
+                    "${adminProvider.startDate} / ${adminProvider.endDate}",
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.teal,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 15),
 
-            // Selector de Filtro (Diario, Semanal, Mensual)
+            // Chips de filtro rápido
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: _filterOptions.map((filter) {
-                  bool isSelected = _selectedFilter == filter;
+                  bool isSelected = adminProvider.currentFilter == filter;
                   return Padding(
                     padding: const EdgeInsets.only(right: 10),
                     child: ChoiceChip(
@@ -92,8 +172,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       backgroundColor: Colors.white,
                       onSelected: (selected) {
                         if (selected) {
-                          setState(() => _selectedFilter = filter);
-                          _fetchStats(); // Volvemos a consultar al servidor
+                          adminProvider.updateStats(filter);
                         }
                       },
                     ),
@@ -103,8 +182,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             const SizedBox(height: 30),
 
-            // Tarjetas de Estadísticas
-            _isLoading
+            // Indicador de carga o Tarjetas de datos
+            adminProvider.isLoading
                 ? const Expanded(
                     child: Center(
                       child: CircularProgressIndicator(color: Colors.black),
@@ -114,14 +193,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     children: [
                       _buildStatCard(
                         "Ingresos Totales",
-                        "S/ ${_totalVentas.toStringAsFixed(2)}",
+                        "S/ ${adminProvider.totalVentas.toStringAsFixed(2)}",
                         Icons.monetization_on,
-                        _currentThemeColor,
+                        _getThemeColor(adminProvider.currentFilter),
                       ),
                       const SizedBox(width: 15),
                       _buildStatCard(
                         "Pedidos Atendidos",
-                        _totalPedidos.toString(),
+                        adminProvider.totalPedidos.toString(),
                         Icons.shopping_bag,
                         Colors.green,
                       ),
@@ -130,7 +209,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
             const SizedBox(height: 40),
 
-            // Menú de Opciones para el Admin
             const Text(
               "Gestión Rápida",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -149,22 +227,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     () => context.push('/admin-offers'),
                   ),
                   const SizedBox(height: 10),
-                  _buildMenuOption(
-                    context,
-                    "Historial Completo",
-                    "Ver todos los pedidos realizados",
-                    Icons.history,
-                    Colors.blueAccent,
-                    () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Esta función se administra desde la versión Web",
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                 ],
               ),
             ),
@@ -196,12 +258,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           children: [
             Icon(icon, color: Colors.grey),
             const SizedBox(height: 10),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
             ),
             Text(

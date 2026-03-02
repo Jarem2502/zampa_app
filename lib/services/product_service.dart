@@ -24,12 +24,21 @@ class ProductService {
   Future<bool> updateProductPromo(
     int productId,
     bool isPromo,
-    double promoPrice,
-  ) async {
+    double promoPrice, {
+    String? name,
+    String? start,
+    String? end,
+  }) async {
     try {
       final response = await _dio.put(
         "/productos/$productId/promo",
-        data: {'is_promo': isPromo ? 1 : 0, 'promo_price': promoPrice},
+        data: {
+          'is_promo': isPromo ? 1 : 0,
+          'promo_price': promoPrice,
+          'promo_name': name,
+          'promo_start': start,
+          'promo_end': end,
+        },
       );
       return response.statusCode == 200;
     } catch (e) {
