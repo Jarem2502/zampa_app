@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart'; // Importante para la navegación
+import 'package:go_router/go_router.dart';
+import '../models/order_detail_model.dart';
 
 class CompletedOrderDetailScreen extends StatelessWidget {
   final Map<String, dynamic> order;
@@ -8,147 +9,230 @@ class CompletedOrderDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 🔥 CORRECCIÓN: Ahora Flutter lee la lista de forma directa y correcta sin confundirse
+    final items = order['items'] as List<OrderDetailModel>? ?? [];
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(), // CAMBIO: Usamos context.pop()
+        centerTitle: true,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[100],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => context.pop(),
+            ),
+          ),
         ),
         title: const Text(
-          "Detalles de Compra", 
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+          "Ticket de Compra",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
         ),
-        centerTitle: true,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- CABECERA: ESTADO Y FECHA ---
-            Center(
+            // --- TARJETA DEL TICKET ---
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
               child: Column(
                 children: [
+                  // CABECERA DEL TICKET
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: (order['statusColor'] as Color).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
+                      color: Colors.grey[50],
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(24),
+                      ),
                     ),
-                    child: Text(
-                      order['status'],
-                      style: TextStyle(
-                        color: order['statusColor'], 
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 14
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (order['statusColor'] as Color).withOpacity(
+                              0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            order['statusText'],
+                            style: TextStyle(
+                              color: order['statusColor'],
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "Pedido #${order['id']}",
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          order['date'],
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // LÍNEA Punteada (Efecto ticket)
+                  Row(
+                    children: List.generate(
+                      30,
+                      (index) => Expanded(
+                        child: Container(
+                          height: 2,
+                          color: index % 2 == 0
+                              ? Colors.transparent
+                              : Colors.grey[300],
+                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 15),
-                  Text(order['date'], style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 5),
-                  Text(
-                    "Pedido ${order['id']}", 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)
+
+                  // LISTA DE PRODUCTOS
+                  Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Tu Orden",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        if (items.isEmpty)
+                          const Text(
+                            "No se pudieron cargar los productos",
+                            style: TextStyle(color: Colors.grey),
+                          )
+                        else
+                          ...items.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12.0),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      "${item.quantity}x",
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      item.name,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 2,
+                                    ),
+                                  ),
+                                  Text(
+                                    "S/${(item.price * item.quantity).toStringAsFixed(2)}",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                        const SizedBox(height: 24),
+                        const Divider(thickness: 1.5),
+                        const SizedBox(height: 16),
+
+                        // TOTALES
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Modalidad",
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              order['orderType'],
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Total Pagado",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              "S/${(order['total'] as double).toStringAsFixed(2)}",
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 40),
-
-            // --- SECCIÓN PRODUCTOS ---
-            const Text(
-              "Resumen de Productos", 
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-            ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[50],
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Text(
-                order['items'], 
-                style: const TextStyle(fontSize: 15, height: 1.5),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            // --- TOTAL PAGADO ---
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Total Pagado", 
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)
-                ),
-                Text(
-                  "S/${order['total'].toStringAsFixed(2)}", 
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold, 
-                    fontSize: 22, 
-                    color: Colors.green
-                  )
-                ),
-              ],
-            ),
-
-            const Spacer(),
-
-            // --- BOTÓN VOLVER A PEDIR (CTA) ---
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // LÓGICA DE RE-COMPRA
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("¡Productos agregados al carrito!"),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  
-                  // --- CAMBIO GO_ROUTER ---
-                  // Navegamos directamente al carrito para que el usuario proceda
-                  context.push('/carrito');
-                },
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                label: const Text(
-                  "Volver a Pedir", 
-                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-            
-            const SizedBox(height: 15),
-            
-            // BOTÓN DE AYUDA
-            Center(
-              child: TextButton(
-                onPressed: () {
-                  // Podríamos navegar al Chatbot aquí
-                  context.push('/chatbot');
-                },
-                child: const Text(
-                  "¿Necesitas ayuda con este pedido?", 
-                  style: TextStyle(color: Colors.black54, decoration: TextDecoration.underline)
-                ),
-              ),
-            )
+            const SizedBox(height: 32),
+            // 🔥 Se eliminó la sección del botón de ayuda con el chatbot
           ],
         ),
       ),

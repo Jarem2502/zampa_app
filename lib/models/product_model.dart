@@ -7,9 +7,11 @@ class ProductModel {
   final int categoryId;
   final bool isPromo;
   final double promoPrice;
-  final String? promoName; // 🔥 NUEVO
-  final String? promoStart; // 🔥 NUEVO
-  final String? promoEnd; // 🔥 NUEVO
+  final String? promoName;
+  final String? promoStart;
+  final String? promoEnd;
+  final bool isAvailable;
+  final int stock; // 🔥 VARIABLE OCULTA PARA VALIDAR
 
   ProductModel({
     required this.id,
@@ -23,6 +25,8 @@ class ProductModel {
     this.promoName,
     this.promoStart,
     this.promoEnd,
+    this.isAvailable = true,
+    this.stock = 999, // Por si algún producto no tiene inventario
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -43,6 +47,13 @@ class ProductModel {
       promoName: json['promo_name'],
       promoStart: json['promo_start'],
       promoEnd: json['promo_end'],
+      isAvailable:
+          json['is_available'] == 1 ||
+          json['is_available'] == true ||
+          json['is_available'] == '1',
+      stock:
+          int.tryParse(json['stock']?.toString() ?? '999') ??
+          999, // 🔥 ATRAPAMOS EL STOCK
     );
   }
 }

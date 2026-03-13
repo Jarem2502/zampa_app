@@ -16,9 +16,8 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 Nos conectamos al Provider
     final cart = context.watch<CartProvider>();
-    final cartItems = cart.items; // Ya es una lista, no necesita .values.toList()
+    final cartItems = cart.items;
 
     if (cartItems.isEmpty && _isDeleteMode) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -27,29 +26,38 @@ class _CartScreenState extends State<CartScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA), // Fondo un poco más limpio
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[100],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => context.pop(),
+            ),
+          ),
         ),
         title: const Text(
           "Mi Pedido",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
         ),
         actions: [
           if (cartItems.isNotEmpty)
-            IconButton(
-              icon: Icon(
-                _isDeleteMode ? Icons.check_circle : Icons.delete_outline,
-                color: _isDeleteMode ? Colors.green : Colors.red,
+            Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: IconButton(
+                icon: Icon(
+                  _isDeleteMode ? Icons.check_circle : Icons.edit_note,
+                  color: _isDeleteMode ? Colors.green : Colors.black54,
+                  size: 28,
+                ),
+                onPressed: () => setState(() => _isDeleteMode = !_isDeleteMode),
               ),
-              onPressed: () => setState(() => _isDeleteMode = !_isDeleteMode),
             ),
-          const SizedBox(width: 8),
         ],
       ),
       body: cartItems.isEmpty
@@ -59,17 +67,31 @@ class _CartScreenState extends State<CartScreen> {
                 if (_isDeleteMode)
                   Container(
                     width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     color: Colors.red[50],
-                    padding: const EdgeInsets.all(8),
-                    child: const Text(
-                      "Toca el icono de basura para quitar productos",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.red, fontSize: 12),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.red, size: 16),
+                        SizedBox(width: 8),
+                        Text(
+                          "Modo edición: Toca la papelera para eliminar",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 Expanded(
                   child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     itemCount: cartItems.length,
                     separatorBuilder: (c, i) => const SizedBox(height: 16),
                     itemBuilder: (context, index) {
@@ -79,9 +101,41 @@ class _CartScreenState extends State<CartScreen> {
                         product: item.product,
                         qty: item.quantity,
                         isDeleteMode: _isDeleteMode,
-                        // 🔥 Corregido: Usamos removeFromCart y updateQuantity
-                        onRemove: () => cart.removeFromCart(item.product.id),
-                        onQtyChanged: (val) => cart.updateQuantity(item.product.id, val),
+                        onRemove: () => cart.removeFromCart(item),
+                        onQtyChanged: (val) {
+                          // 🔥 Validación extra en la pantalla del carrito
+                          if (val > item.product.stock) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: Colors.white,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        "Stock máximo alcanzado para este producto",
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                backgroundColor: Colors.orange[800],
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                duration: const Duration(seconds: 2),
+                              ),
+                            );
+                          } else {
+                            cart.updateQuantity(item, val);
+                          }
+                        },
                       );
                     },
                   ),
@@ -99,54 +153,83 @@ class _CartScreenState extends State<CartScreen> {
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Total a Pagar",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-              ),
-              Text(
-                "S/${total.toStringAsFixed(2)}",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 24,
-                  color: Colors.green,
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Total a Pagar",
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: Colors.black54,
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 55,
-            child: ElevatedButton(
-              onPressed: _isDeleteMode || total <= 0
-                  ? null
-                  : () => context.push('/checkout', extra: total),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.black,
-                disabledBackgroundColor: Colors.grey[300],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                Text(
+                  "S/${total.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 28,
+                    color: Colors.green,
+                  ),
                 ),
-              ),
-              child: Text(
-                _isDeleteMode ? "Termina de editar" : "Confirmar Pedido",
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton(
+                onPressed: _isDeleteMode || total <= 0
+                    ? null
+                    : () => context.push('/checkout', extra: total),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  disabledBackgroundColor: Colors.grey[300],
+                  elevation: 5,
+                  shadowColor: Colors.black.withOpacity(0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _isDeleteMode
+                          ? "Termina de editar para pagar"
+                          : "Confirmar Pedido",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    if (!_isDeleteMode) ...[
+                      const SizedBox(width: 10),
+                      const Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -156,20 +239,50 @@ class _CartScreenState extends State<CartScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.shopping_cart_outlined, size: 100, color: Colors.grey[300]),
+          Container(
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.shopping_cart_outlined,
+              size: 80,
+              color: Colors.grey[400],
+            ),
+          ),
+          const SizedBox(height: 24),
           const Text(
             "Tu carrito está vacío",
-            style: TextStyle(fontSize: 20, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            "¡Agrega algo delicioso para empezar!",
+            style: TextStyle(fontSize: 15, color: Colors.black54),
           ),
           const SizedBox(height: 40),
           ElevatedButton(
             onPressed: () => context.pop(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+              backgroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
             ),
-            child: const Text("Ir al Menú", style: TextStyle(color: Colors.white, fontSize: 16)),
+            child: const Text(
+              "Explorar el Menú",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -195,64 +308,146 @@ class CartItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    double currentPrice = product.isPromo ? product.promoPrice : product.price;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Row(
         children: [
+          // IMAGEN
           Container(
-            width: 70, height: 70,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: product.imageUrl != null 
-                ? Image.network(
-                    product.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (c, e, s) => const Icon(Icons.fastfood, color: Colors.black45),
-                  )
-                : const Icon(Icons.fastfood, color: Colors.black45),
+              borderRadius: BorderRadius.circular(16),
+              child: product.imageUrl != null
+                  ? Image.network(
+                      product.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => const Icon(
+                        Icons.fastfood,
+                        color: Colors.black26,
+                        size: 40,
+                      ),
+                    )
+                  : const Icon(Icons.fastfood, color: Colors.black26, size: 40),
             ),
           ),
           const SizedBox(width: 16),
+
+          // DETALLES
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                Text("S/${product.price.toStringAsFixed(2)}", style: const TextStyle(color: Colors.green)),
+                Text(
+                  product.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  "S/${currentPrice.toStringAsFixed(2)}",
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
           ),
+
+          // ACCIONES (Eliminar o Cambiar cantidad)
           if (isDeleteMode)
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: onRemove,
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: onRemove,
+              ),
             )
           else
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.remove_circle_outline, size: 20),
-                  onPressed: () => onQtyChanged(qty - 1),
-                ),
-                Text('$qty', style: const TextStyle(fontWeight: FontWeight.bold)),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline, size: 20),
-                  onPressed: () => onQtyChanged(qty + 1),
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  _buildQtyBtn(
+                    Icons.remove,
+                    () => onQtyChanged(qty - 1),
+                    qty > 1,
+                  ),
+                  Container(
+                    width: 30,
+                    alignment: Alignment.center,
+                    child: Text(
+                      '$qty',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  _buildQtyBtn(Icons.add, () => onQtyChanged(qty + 1), true),
+                ],
+              ),
             ),
         ],
+      ),
+    );
+  }
+
+  // Botón redondito interno para el selector de cantidad
+  Widget _buildQtyBtn(IconData icon, VoidCallback onTap, bool isEnabled) {
+    return InkWell(
+      onTap: isEnabled ? onTap : null,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isEnabled ? Colors.white : Colors.transparent,
+          shape: BoxShape.circle,
+          boxShadow: isEnabled
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                  ),
+                ]
+              : [],
+        ),
+        child: Icon(
+          icon,
+          size: 18,
+          color: isEnabled ? Colors.black : Colors.grey,
+        ),
       ),
     );
   }

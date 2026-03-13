@@ -1,10 +1,12 @@
-import 'dart:async'; // Necesario para el Timer
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../services/order_service.dart';
+import '../models/order_model.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
-  final dynamic orderId; // Cambiamos a dynamic para evitar errores de tipo int/string
+  final int
+  orderId; // 🔥 CORRECCIÓN: Ya no es dynamic, especificamos que es un 'int'
   final String currentStatus;
 
   const OrderTrackingScreen({
@@ -19,117 +21,209 @@ class OrderTrackingScreen extends StatefulWidget {
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   late String _status;
+  int? _estimatedMinutes;
   final _orderService = OrderService();
   Timer? _timer;
+
+  final List<Map<String, dynamic>> _steps = [
+    {
+      'status': 'validating',
+      'title': 'Validando Pago',
+      'desc': 'Estamos confirmando tu transferencia.',
+      'icon': Icons.receipt_long,
+    },
+    {
+      'status': 'preparing',
+      'title': 'Preparando',
+      'desc': 'La cocina está preparando tu pedido.',
+      'icon': Icons.soup_kitchen,
+    },
+    {
+      'status': 'ready',
+      'title': 'Listo',
+      'desc': 'Tu pedido está listo para entregar/recoger.',
+      'icon': Icons.check_circle_outline,
+    },
+    {
+      'status': 'delivered',
+      'title': 'Entregado',
+      'desc': '¡A disfrutar tu comida!',
+      'icon': Icons.home,
+    },
+  ];
 
   @override
   void initState() {
     super.initState();
     _status = widget.currentStatus;
-    // 🔥 Iniciamos el seguimiento automático cada 10 segundos
+    _fetchCurrentOrderData();
     _startTracking();
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // Importante cancelar el timer al salir de la pantalla
+    _timer?.cancel();
     super.dispose();
   }
 
-  void _startTracking() {
-    _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
-      final orders = await _orderService.getMyOrders();
-      // Buscamos nuestro pedido específico en la lista para ver si cambió de estado
-      final currentOrder = orders.firstWhere(
+  Future<void> _fetchCurrentOrderData() async {
+    final rawOrders = await _orderService.getMyOrders();
+    try {
+      final orderData = rawOrders.firstWhere(
         (o) => o['id'].toString() == widget.orderId.toString(),
-        orElse: () => null,
       );
+      final order = OrderModel.fromJson(orderData);
 
-      if (currentOrder != null && currentOrder['status'] != _status) {
-        if (mounted) {
-          setState(() {
-            _status = currentOrder['status'];
-          });
+      if (mounted) {
+        setState(() {
+          _status = order.status;
+          _estimatedMinutes = order.estimatedTime;
+        });
+
+        if (_status == 'delivered' || _status == 'cancelled') {
+          _timer?.cancel();
         }
       }
+    } catch (e) {
+      // Usamos debugPrint para evitar la línea amarilla de avoid_print
+      debugPrint("No se encontró el pedido actual en el historial.");
+    }
+  }
+
+  void _startTracking() {
+    _timer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      _fetchCurrentOrderData();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Traducimos los estados técnicos a los de la UI
-    final steps = [
-      {
-        'title': 'Pedido Enviado',
-        'desc': 'Hemos recibido tu solicitud y comprobante.',
-        'isActive': true,
-      },
-      {
-        'title': 'Validando Pago',
-        'desc': 'El administrador está revisando tu captura.',
-        'isActive': _status == 'validating' || _status == 'preparing' || _status == 'ready',
-      },
-      {
-        'title': 'En Preparación',
-        'desc': 'Tus alimentos se están cocinando.',
-        'isActive': _status == 'preparing' || _status == 'ready',
-      },
-      {
-        'title': 'Listo para Recoger',
-        'desc': 'Acércate al mostrador o a tu mesa.',
-        'isActive': _status == 'ready',
-      },
-    ];
+    if (_status == 'cancelled') {
+      return _buildCancelledState();
+    }
+
+    int currentStepIndex = _steps.indexWhere((s) => s['status'] == _status);
+    if (currentStepIndex == -1) currentStepIndex = 0;
 
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
+        centerTitle: true,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[100],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => context.pop(),
+            ),
+          ),
         ),
         title: Text(
-          "Seguimiento #${widget.orderId}", 
-          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)
+          "Pedido #${widget.orderId}",
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w800,
+          ),
         ),
-        centerTitle: true,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
-              child: Container(
-                height: 120, width: 120,
+            if (_status == 'preparing' &&
+                _estimatedMinutes != null &&
+                _estimatedMinutes! > 0)
+              Container(
+                margin: const EdgeInsets.only(bottom: 30),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
-                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF2196F3), Color(0xFF1976D2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.blue.withOpacity(0.3),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
-                child: Icon(
-                  _status == 'ready' ? Icons.check_circle : Icons.restaurant, 
-                  size: 60, color: Colors.green
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.timer_outlined,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Tiempo Estimado",
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "~$_estimatedMinutes minutos",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Center(
-              child: Text(
-                _status == 'ready' ? "¡Tu pedido está listo!" : "Tiempo estimado: 15-20 min",
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black54),
+
+            const Text(
+              "Estado de tu pedido",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Colors.black87,
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
 
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: steps.length,
+              itemCount: _steps.length,
               itemBuilder: (context, index) {
-                final step = steps[index];
-                bool isActive = step['isActive'] as bool;
-                bool isLast = index == steps.length - 1;
+                final step = _steps[index];
+                bool isCompleted = index < currentStepIndex;
+                bool isActive = index == currentStepIndex;
+                bool isLast = index == _steps.length - 1;
+
+                Color iconColor = isCompleted || isActive
+                    ? Colors.black
+                    : Colors.grey[300]!;
+                Color lineColor = isCompleted
+                    ? Colors.black
+                    : Colors.grey[200]!;
 
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,42 +231,76 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                     Column(
                       children: [
                         Container(
-                          width: 18, height: 18,
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isActive ? Colors.green : Colors.grey[300],
+                            color: isActive
+                                ? Colors.black
+                                : (isCompleted
+                                      ? Colors.grey[200]
+                                      : Colors.white),
                             shape: BoxShape.circle,
-                            border: isActive ? Border.all(color: Colors.greenAccent, width: 3) : null,
+                            border: Border.all(
+                              color: isCompleted || isActive
+                                  ? Colors.black
+                                  : Colors.grey[300]!,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            step['icon'] as IconData,
+                            color: isActive ? Colors.white : iconColor,
+                            size: 24,
                           ),
                         ),
                         if (!isLast)
                           Container(
-                            width: 2, height: 50,
-                            color: isActive ? Colors.green : Colors.grey[300],
+                            width: 3,
+                            height: 60,
+                            margin: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: lineColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
                           ),
                       ],
                     ),
                     const SizedBox(width: 20),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            step['title'] as String,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15,
-                              color: isActive ? Colors.black : Colors.grey,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 10.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              step['title'] as String,
+                              style: TextStyle(
+                                fontWeight: isActive
+                                    ? FontWeight.w900
+                                    : FontWeight.bold,
+                                fontSize: 18,
+                                color: isActive
+                                    ? Colors.black
+                                    : (isCompleted
+                                          ? Colors.black87
+                                          : Colors.grey),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            step['desc'] as String,
-                            style: TextStyle(
-                              color: isActive ? Colors.black54 : Colors.grey[400],
-                              fontSize: 13,
+                            const SizedBox(height: 6),
+                            Text(
+                              step['desc'] as String,
+                              style: TextStyle(
+                                color: isActive
+                                    ? Colors.black54
+                                    : (isCompleted
+                                          ? Colors.black54
+                                          : Colors.grey[400]),
+                                fontSize: 14,
+                                height: 1.4,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 30), 
-                        ],
+                            const SizedBox(height: 40),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -180,6 +308,74 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCancelledState() {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.black),
+          onPressed: () => context.pop(),
+        ),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.cancel_outlined,
+                  size: 80,
+                  color: Colors.red[700],
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Pedido Cancelado",
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                "Lamentablemente tu pedido no pudo ser procesado o el pago no fue validado.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54, fontSize: 16),
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: () => context.go('/menu'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    "Volver al Menú",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../services/order_service.dart';
 import '../providers/cart_provider.dart';
 import '../providers/auth_provider.dart';
@@ -34,7 +35,7 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 70, // Comprimimos un poco para no saturar Hostinger
+      imageQuality: 70,
     );
 
     if (image != null) {
@@ -46,19 +47,18 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
 
   Future<void> _sendOrder() async {
     if (_pickedFile == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Por favor, sube la captura de tu pago")),
+      _showSnackBar(
+        "⚠️ Por favor, sube la captura de tu pago",
+        Colors.orange[800]!,
       );
       return;
     }
 
     setState(() => _isSending = true);
 
-    // 1. Obtenemos los proveedores (Carrito y Usuario)
     final cart = context.read<CartProvider>();
     final auth = context.read<AuthProvider>();
 
-    // 2. Transformamos el carrito en un JSON que Laravel entienda
     final productsJson = cart.items
         .map(
           (item) => {
@@ -72,22 +72,19 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
         )
         .toList();
 
-    // 3. Juntamos toda la información
     final orderData = {
-      'user_id': auth.user?.id ?? 0, // ID del usuario real
+      'user_id': auth.user?.id ?? 0,
       'total': widget.totalAmount,
       'payment_method': widget.extraData['metodo'],
       'order_type': widget.extraData['order_type'],
       'client_name': widget.extraData['nombre'],
       'dni': widget.extraData['dni_ruc'],
-      'phone': widget.extraData['phone'],
-      'products': jsonEncode(productsJson), // Convertimos la lista a texto
+      'products': jsonEncode(productsJson),
     };
 
-    // 4. Leemos la imagen como bytes
-    final bytes = await _pickedFile!.readAsBytes();
+    // 🔥 CORRECCIÓN: Le decimos a Flutter que esto es una lista de números (Bytes)
+    final List<int> bytes = await _pickedFile!.readAsBytes();
 
-    // 5. Enviamos todo a Hostinger
     bool success = await _orderService.sendOrder(
       orderData: orderData,
       imagePath: _pickedFile!.path,
@@ -97,173 +94,360 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
     setState(() => _isSending = false);
 
     if (success && mounted) {
-      cart.clearCart(); // ¡Vaciamos el carrito porque ya compró!
+      cart.clearCart();
       _showSuccessDialog(context);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              "Hubo un error al enviar el pedido. Intenta nuevamente.",
-            ),
-            backgroundColor: Colors.red,
-          ),
+        _showSnackBar(
+          "❌ Hubo un error al enviar el pedido. Intenta nuevamente.",
+          Colors.red[800]!,
         );
       }
     }
   }
 
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[100],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => context.pop(),
+            ),
+          ),
         ),
         title: const Text(
-          "Comprobante",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          "Pago y Verificación",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green[50],
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.verified_user_outlined,
+                size: 40,
+                color: Colors.green[700],
+              ),
+            ),
+            const SizedBox(height: 16),
             const Text(
-              "Ya casi terminamos",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              "¡Último paso!",
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                color: Colors.black87,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
-              "Por favor, transfiere el total de S/${widget.totalAmount.toStringAsFixed(2)} a nuestro número Yape o Plin y sube la captura de pantalla.",
+              "Transfiere el monto exacto y adjunta tu captura para que cocina empiece a preparar tu pedido.",
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black87, fontSize: 15),
-            ),
-            const SizedBox(height: 30),
-
-            // Número a yapear (Simulado)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 30),
-              decoration: BoxDecoration(
-                color: Colors.deepPurple[50],
-                borderRadius: BorderRadius.circular(15),
-                border: Border.all(color: Colors.deepPurple.shade200),
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 15,
+                height: 1.5,
               ),
-              child: const Column(
-                children: [
-                  Text(
-                    "Número Yape / Plin",
-                    style: TextStyle(color: Colors.deepPurple),
+            ),
+            const SizedBox(height: 32),
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF7412A8), Color(0xFF4A0080)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF7412A8).withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 8),
                   ),
-                  SizedBox(height: 5),
-                  Text(
-                    "987 654 321",
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    "Total a Transferir",
                     style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.deepPurple,
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
+                  const SizedBox(height: 8),
                   Text(
-                    "A nombre de: Zampa Café",
-                    style: TextStyle(fontSize: 12, color: Colors.deepPurple),
+                    "S/${widget.totalAmount.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Número Yape / Plin",
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              "987 654 321",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy, color: Colors.white),
+                          onPressed: () {
+                            Clipboard.setData(
+                              const ClipboardData(text: "987654321"),
+                            );
+                            _showSnackBar(
+                              "Número copiado al portapapeles",
+                              Colors.green[700]!,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Titular: Zampa Café & Burguer",
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
 
-            // Área para subir la imagen
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Adjuntar Comprobante",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             GestureDetector(
               onTap: _pickImage,
               child: Container(
-                height: 250,
+                height: 220,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                    color: Colors.grey.shade300,
-                    style: BorderStyle.solid,
+                    color: _pickedFile != null
+                        ? Colors.green
+                        : Colors.grey.shade300,
                     width: 2,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: _pickedFile != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        // En web a veces Image.network funciona mejor para archivos locales en memoria
-                        child: Image.network(
-                          _pickedFile!.path,
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => const Icon(
-                            Icons.image,
-                            size: 50,
-                            color: Colors.grey,
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: Image.network(
+                              _pickedFile!.path,
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => const Icon(
+                                Icons.image,
+                                size: 50,
+                                color: Colors.grey,
+                              ),
+                            ),
                           ),
-                        ),
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: CircleAvatar(
+                              backgroundColor: Colors.white,
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.edit,
+                                  color: Colors.black,
+                                  size: 20,
+                                ),
+                                onPressed: _pickImage,
+                              ),
+                            ),
+                          ),
+                        ],
                       )
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.add_photo_alternate_outlined,
-                            size: 60,
-                            color: Colors.grey[400],
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 40,
+                              color: Colors.grey[600],
+                            ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 16),
                           const Text(
                             "Toca para subir captura",
                             style: TextStyle(
-                              color: Colors.black54,
+                              color: Colors.black87,
                               fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            "Solo JPG o PNG",
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 13,
                             ),
                           ),
                         ],
                       ),
               ),
             ),
+            const SizedBox(height: 120),
+          ],
+        ),
+      ),
 
-            const SizedBox(height: 40),
-
-            // Botón de Confirmación
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _isSending ? null : _sendOrder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: _isSending
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Text(
-                        "Confirmar Pedido",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
+      bottomSheet: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
             ),
           ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton(
+              onPressed: _isSending ? null : _sendOrder,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                elevation: 5,
+                shadowColor: Colors.black.withOpacity(0.4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
+              child: _isSending
+                  ? const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                        SizedBox(width: 15),
+                        Text(
+                          "Procesando...",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const Text(
+                      "Enviar Pedido",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+            ),
+          ),
         ),
       ),
     );
@@ -273,43 +457,85 @@ class _PaymentUploadScreenState extends State<PaymentUploadScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 80),
-            const SizedBox(height: 20),
-            const Text(
-              "¡Pedido Enviado!",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Gracias ${widget.clientName}, tu comprobante será validado por caja en breve.",
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  context.pop(); // Cierra el diálogo
-                  context.go('/menu'); // Vuelve al inicio limpio
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF81C784),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.rectangle,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 10,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  shape: BoxShape.circle,
                 ),
-                child: const Text(
-                  "Volver al Menú",
-                  style: TextStyle(color: Colors.white),
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.green[600],
+                  size: 60,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              const Text(
+                "¡Pedido Enviado!",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Gracias ${widget.clientName}. Tu comprobante será validado en caja brevemente. ¡Prepárate para disfrutar!",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 15,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  onPressed: () {
+                    context.pop();
+                    context.go('/menu');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    "Volver al Menú",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

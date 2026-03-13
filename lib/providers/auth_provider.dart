@@ -24,8 +24,18 @@ class AuthProvider with ChangeNotifier {
     final token = prefs.getString('auth_token');
     final userName = prefs.getString('user_name') ?? 'Usuario Zampa';
     final userEmail = prefs.getString('user_email') ?? '';
-    final userAvatar = prefs.getString('user_avatar'); // Leemos la foto
+    final userAvatarRaw = prefs.getString('user_avatar');
     final roleId = prefs.getInt('user_role');
+
+    // 🔥 CORRECCIÓN DEL BUG BLANCO: Construimos la URL completa si viene cortada
+    String? finalAvatar;
+    if (userAvatarRaw != null && userAvatarRaw.isNotEmpty) {
+      if (userAvatarRaw.startsWith('http')) {
+        finalAvatar = userAvatarRaw;
+      } else {
+        finalAvatar = 'https://zampa.pro-cafes.com/storage/$userAvatarRaw';
+      }
+    }
 
     if (userId != null && token != null) {
       _user = UserModel(
@@ -34,7 +44,7 @@ class AuthProvider with ChangeNotifier {
         email: userEmail,
         roleId: roleId,
         token: token,
-        avatar: userAvatar, // Agregamos la foto al modelo
+        avatar: finalAvatar,
       );
     }
     _isLoading = false;
@@ -71,18 +81,17 @@ class AuthProvider with ChangeNotifier {
       await prefs.setInt('user_role', user.roleId!);
     }
     if (user.avatar != null) {
-      await prefs.setString('user_avatar', user.avatar!); // Guardamos la foto
+      await prefs.setString('user_avatar', user.avatar!);
     }
   }
 
   Future<void> logout() async {
     await _authService.logout();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_name');
-    await prefs.remove('user_email');
-    await prefs.remove('user_role');
-    await prefs.remove('user_avatar');
     _user = null;
     notifyListeners();
+  }
+
+  Future<void> reloadSession() async {
+    await _loadUserSession();
   }
 }

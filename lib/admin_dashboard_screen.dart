@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import 'providers/admin_provider.dart';
-import 'providers/auth_provider.dart';
+
+const Color zampaGreen = Color(0xFF1A9956);
+const Color zampaRed = Color(0xFFE53935);
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -13,70 +12,20 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final List<String> _filterOptions = ['Diario', 'Semanal', 'Mensual'];
+  int _selectedPeriodIndex = 0; // 0: Diario, 1: Semanal, 2: Mensual
 
-  @override
-  void initState() {
-    super.initState();
-    // Carga inicial de datos al entrar al panel
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AdminProvider>().updateStats('Diario');
-    });
-  }
-
-  // 🔥 Función corregida para cerrar sesión y redirigir a la raíz '/'
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
+  // Función para abrir el calendario en el header
+  Future<void> _selectDate(BuildContext context) async {
+    await showDatePicker(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          "Cerrar Sesión",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          "¿Estás seguro de que quieres salir del panel de administración?",
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // Cierra el diálogo
-              context.read<AuthProvider>().logout(); // Limpia token y sesión
-
-              // 🔥 CORRECCIÓN: Según tu main.dart, el path del Login es '/'
-              context.go('/');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text("Salir", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 📅 Selector de rango de fechas personalizado
-  Future<void> _selectCustomRange(BuildContext context) async {
-    final adminProv = context.read<AdminProvider>();
-
-    final DateTimeRange? picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now(),
-      helpText: 'SELECCIONA RANGO DE VENTAS',
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2023),
+      lastDate: DateTime(2030),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.black,
+              primary: zampaGreen,
               onPrimary: Colors.white,
               onSurface: Colors.black,
             ),
@@ -85,152 +34,217 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         );
       },
     );
-
-    if (picked != null) {
-      String start = DateFormat('yyyy-MM-dd').format(picked.start);
-      String end = DateFormat('yyyy-MM-dd').format(picked.end);
-      adminProv.updateStatsCustom(start, end);
-    }
-  }
-
-  Color _getThemeColor(String filter) {
-    if (filter == 'Diario') return Colors.blue;
-    if (filter == 'Semanal') return Colors.purple;
-    if (filter == 'Mensual') return Colors.orange;
-    return Colors.teal;
   }
 
   @override
   Widget build(BuildContext context) {
-    final adminProvider = context.watch<AdminProvider>();
-
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        // Icono de Logout que abre el diálogo de confirmación
-        leading: IconButton(
-          icon: const Icon(Icons.logout, color: Colors.redAccent),
-          onPressed: () => _showLogoutDialog(context),
-        ),
-        title: const Text(
-          "Panel Administrativo",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month, color: Colors.black),
-            onPressed: () => _selectCustomRange(context),
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
+      backgroundColor: const Color(0xFFF4F6F8),
+      body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  "Resumen de Ventas",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            // --- HEADER CURVO OSCURO ---
+            Container(
+              padding: const EdgeInsets.only(
+                top: 60,
+                left: 24,
+                right: 24,
+                bottom: 30,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(40),
                 ),
-                if (adminProvider.currentFilter == 'Personalizado')
-                  Text(
-                    "${adminProvider.startDate} / ${adminProvider.endDate}",
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.teal,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 15),
-
-            // Chips de filtro rápido
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+              ),
               child: Row(
-                children: _filterOptions.map((filter) {
-                  bool isSelected = adminProvider.currentFilter == filter;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: ChoiceChip(
-                      label: Text(
-                        filter,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                          ),
+                          onPressed: () => context.pop(),
                         ),
                       ),
-                      selected: isSelected,
-                      selectedColor: Colors.black,
-                      backgroundColor: Colors.white,
-                      onSelected: (selected) {
-                        if (selected) {
-                          adminProvider.updateStats(filter);
-                        }
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 30),
-
-            // Indicador de carga o Tarjetas de datos
-            adminProvider.isLoading
-                ? const Expanded(
-                    child: Center(
-                      child: CircularProgressIndicator(color: Colors.black),
-                    ),
-                  )
-                : Row(
-                    children: [
-                      _buildStatCard(
-                        "Ingresos Totales",
-                        "S/ ${adminProvider.totalVentas.toStringAsFixed(2)}",
-                        Icons.monetization_on,
-                        _getThemeColor(adminProvider.currentFilter),
-                      ),
-                      const SizedBox(width: 15),
-                      _buildStatCard(
-                        "Pedidos Atendidos",
-                        adminProvider.totalPedidos.toString(),
-                        Icons.shopping_bag,
-                        Colors.green,
+                      const SizedBox(width: 16),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Panel de Control",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            "Zampa Café & Burguer",
+                            style: TextStyle(
+                              color: zampaGreen,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-
-            const SizedBox(height: 40),
-
-            const Text(
-              "Gestión Rápida",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 15),
-
-            Expanded(
-              child: ListView(
-                children: [
-                  _buildMenuOption(
-                    context,
-                    "Ofertas y Promociones",
-                    "Activa o desactiva descuentos",
-                    Icons.local_offer,
-                    Colors.redAccent,
-                    () => context.push('/admin-offers'),
+                  GestureDetector(
+                    onTap: () => _selectDate(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.calendar_month,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 10),
                 ],
               ),
             ),
+
+            const SizedBox(height: 24),
+
+            // --- RESUMEN DE VENTAS ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Resumen de Ventas",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildPeriodTab("Diario", 0),
+                        _buildPeriodTab("Semanal", 1),
+                        _buildPeriodTab("Mensual", 2),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      _buildStatCard(
+                        "Ingresos Totales",
+                        "S/ 36.00",
+                        Icons.attach_money,
+                        zampaGreen,
+                      ),
+                      const SizedBox(width: 16),
+                      _buildStatCard(
+                        "Pedidos Hoy",
+                        "2",
+                        Icons.shopping_bag_outlined,
+                        Colors.blue,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // --- GESTIÓN RÁPIDA (YA CONECTADA) ---
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Gestión Rápida",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  _buildActionTile(
+                    title: "Ofertas y Promociones",
+                    subtitle: "Activa o desactiva descuentos",
+                    icon: Icons.local_offer,
+                    iconColor: zampaRed,
+                    onTap: () => context.push('/admin-offers'),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionTile(
+                    title: "Historial de Pedidos",
+                    subtitle: "Revisa las órdenes completadas",
+                    icon: Icons.receipt_long,
+                    iconColor: Colors.black87,
+                    onTap: () =>
+                        context.push('/admin-orders'), // <--- Conectado
+                  ),
+                  const SizedBox(height: 12),
+                  _buildActionTile(
+                    title: "Mi Carta",
+                    subtitle: "Edita precios y disponibilidad",
+                    icon: Icons.fastfood,
+                    iconColor: Colors.orange,
+                    onTap: () => context.push('/admin-menu'), // <--- Conectado
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeriodTab(String title, int index) {
+    bool isSelected = _selectedPeriodIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedPeriodIndex = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.black : Colors.transparent,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Center(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.black54,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -247,31 +261,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border(left: BorderSide(color: color, width: 4)),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
-            BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
+            ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: Colors.grey),
-            const SizedBox(height: 10),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: Colors.black87,
               ),
             ),
+            const SizedBox(height: 4),
             Text(
               title,
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
+              style: const TextStyle(
+                color: Colors.black54,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -279,37 +305,39 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildMenuOption(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
-    return InkWell(
+  Widget _buildActionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                shape: BoxShape.circle,
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(icon, color: color),
+              child: Icon(icon, color: iconColor, size: 26),
             ),
-            const SizedBox(width: 15),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,18 +345,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   Text(
                     title,
                     style: const TextStyle(
-                      fontWeight: FontWeight.bold,
                       fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    style: const TextStyle(fontSize: 13, color: Colors.black54),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+            const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
           ],
         ),
       ),

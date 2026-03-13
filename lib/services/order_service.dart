@@ -5,11 +5,10 @@ import 'package:http_parser/http_parser.dart';
 class OrderService {
   final Dio _dio = DioClient.dio;
 
-  // Enviar el pedido nuevo a Hostinger
   Future<bool> sendOrder({
     required Map<String, dynamic> orderData,
     required String imagePath,
-    required dynamic imageBytes,
+    required List<int> imageBytes, // 🔥 CORRECCIÓN: Ahora es List<int>
   }) async {
     try {
       FormData formData = FormData.fromMap({
@@ -19,7 +18,6 @@ class OrderService {
         'order_type': orderData['order_type'],
         'client_name': orderData['client_name'],
         'dni': orderData['dni'] ?? '',
-        'phone': orderData['phone'],
         'products': orderData['products'].toString(),
         'receipt': MultipartFile.fromBytes(
           imageBytes,
@@ -36,10 +34,8 @@ class OrderService {
     }
   }
 
-  // Descargar el historial de pedidos
   Future<List<dynamic>> getMyOrders() async {
     try {
-      // Nota: Asumiendo que tu API devuelve los pedidos del usuario autenticado
       final response = await _dio.get('/orders');
       if (response.statusCode == 200) {
         return response.data;

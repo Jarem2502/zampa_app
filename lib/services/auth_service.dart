@@ -1,13 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http_parser/http_parser.dart';
 import '../utils/dio_client.dart';
 import '../models/user_model.dart';
 
 class AuthService {
   final Dio _dio = DioClient.dio;
 
-  // --- 1. LOGIN TRADICIONAL ---
   Future<UserModel?> login(String email, String password) async {
     try {
       final response = await _dio.post(
@@ -34,13 +34,11 @@ class AuthService {
     }
   }
 
-  // --- 2. LOGIN CON GOOGLE ---
   Future<UserModel?> loginWithGoogle() async {
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut();
-
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
       if (googleUser == null) return null;
 
       final response = await _dio.post(
@@ -64,17 +62,16 @@ class AuthService {
       }
       return null;
     } catch (e) {
-      print("Error en Google Login: $e");
+      print("Error Google Login: $e");
       return null;
     }
   }
 
-  // --- 3. REGISTRO ---
-  Future<bool> register(String username, String email, String password) async {
+  Future<bool> register(String name, String email, String password) async {
     try {
       final response = await _dio.post(
         '/register',
-        data: {'username': username, 'email': email, 'password': password},
+        data: {'username': name, 'email': email, 'password': password},
       );
       return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
@@ -82,7 +79,6 @@ class AuthService {
     }
   }
 
-  // --- 4. RECUPERACIÓN DE CONTRASEÑA (CÓDIGO DE 6 DÍGITOS) ---
   Future<bool> sendRecoveryCode(String email) async {
     try {
       final response = await _dio.post(
@@ -115,12 +111,7 @@ class AuthService {
     try {
       final response = await _dio.post(
         '/password/reset',
-        data: {
-          'email': email,
-          'code': code,
-          'password': newPassword,
-          'password_confirmation': newPassword,
-        },
+        data: {'email': email, 'password': newPassword},
       );
       return response.statusCode == 200;
     } catch (e) {
@@ -128,42 +119,48 @@ class AuthService {
     }
   }
 
-  // --- ACTUALIZAR PERFIL (CON FOTO OPCIONAL) ---
   Future<bool> updateProfile(
     String newName,
     String newPassword, {
-    String? imagePath,
+    List<int>? imageBytes,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final userId = prefs.getString('user_id');
 
-      // Usamos FormData para poder mandar archivos pesados como fotos
-      FormData formData = FormData.fromMap({
-        '_method':
-            'PUT', // Laravel necesita esto cuando enviamos archivos con método POST
-        'username': newName,
-      });
+      FormData formData = FormData.fromMap({'username': newName});
 
       if (newPassword.isNotEmpty) {
         formData.fields.add(MapEntry('password', newPassword));
       }
 
-      // Si el usuario seleccionó una imagen, la adjuntamos
-      if (imagePath != null) {
+      if (imageBytes != null) {
         formData.files.add(
           MapEntry(
             'avatar',
-            await MultipartFile.fromFile(imagePath, filename: 'perfil.jpg'),
+            MultipartFile.fromBytes(
+              imageBytes,
+              filename: 'perfil.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
           ),
         );
       }
 
-      // Usamos post porque enviar archivos con put en FormData suele dar problemas en algunos servidores
       final response = await _dio.post('/users/$userId', data: formData);
 
       if (response.statusCode == 200) {
         await prefs.setString('user_name', newName);
+
+        if (response.data['user'] != null &&
+            response.data['user']['avatar'] != null) {
+          // 🔥 CORRECCIÓN: Armamos la URL completa antes de guardar
+          String rawAvatar = response.data['user']['avatar'];
+          String fullAvatar = rawAvatar.startsWith('http')
+              ? rawAvatar
+              : 'https://zampa.pro-cafes.com/storage/$rawAvatar';
+          await prefs.setString('user_avatar', fullAvatar);
+        }
         return true;
       }
       return false;
@@ -173,10 +170,16 @@ class AuthService {
     }
   }
 
-  // --- 5. LOGOUT ---
-  Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('user_id');
+  Future<bool> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await _dio.post('/logout');
+      await prefs.clear();
+      return true;
+    } catch (e) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      return true;
+    }
   }
 }

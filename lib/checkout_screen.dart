@@ -15,30 +15,26 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final _nameController = TextEditingController();
   final _documentController = TextEditingController();
-  final _phoneController = TextEditingController();
 
   String _selectedOrderType = 'Llevar';
-  TableModel? _selectedTable; // 🔥 Ahora guardamos el objeto Mesa completo
+  TableModel? _selectedTable;
   String _selectedDocType = 'Boleta';
 
-  // 🔥 Variables para las mesas reales de BD
   List<TableModel> _availableTables = [];
   bool _isLoadingTables = false;
 
   @override
   void initState() {
     super.initState();
-    _loadTables(); // Cargamos las mesas al abrir la pantalla
+    _loadTables();
   }
 
-  // Descarga las mesas y filtra solo las disponibles
   Future<void> _loadTables() async {
     setState(() => _isLoadingTables = true);
     final allTables = await TableService().getTables();
 
     if (mounted) {
       setState(() {
-        // Filtramos solo las que dicen "disponible" (ignoramos mayúsculas/minúsculas)
         _availableTables = allTables
             .where((t) => t.status.toLowerCase() == 'disponible')
             .toList();
@@ -51,110 +47,131 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   void dispose() {
     _nameController.dispose();
     _documentController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
   void _proceedToPayment() {
     if (_selectedOrderType == 'Local' && _selectedTable == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, selecciona una mesa')),
-      );
+      _showError('Por favor, selecciona una mesa para continuar.');
       return;
     }
 
     if (_nameController.text.trim().isEmpty ||
         _documentController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, completa tus datos')),
-      );
+      _showError('Por favor, completa tus datos para el comprobante.');
       return;
     }
 
     if (_selectedDocType == 'Boleta' && _documentController.text.length != 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El DNI debe tener 8 dígitos')),
-      );
+      _showError('El DNI debe tener exactamente 8 dígitos.');
       return;
     }
 
     if (_selectedDocType == 'Factura' &&
         _documentController.text.length != 11) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('El RUC debe tener 11 dígitos')),
-      );
+      _showError('El RUC debe tener exactamente 11 dígitos.');
       return;
     }
 
     final extraData = {
       'total': widget.totalAmount,
-      // 🔥 Ahora enviamos el nombre real de la mesa (ej: "Mesa 1")
       'order_type': _selectedOrderType == 'Local'
           ? 'En Mesa (${_selectedTable!.name})'
           : 'Para Llevar',
       'doc_type': _selectedDocType,
       'nombre': _nameController.text.trim(),
       'dni_ruc': _documentController.text.trim(),
-      'phone': _phoneController.text.trim(),
       'metodo': 'Yape/Plin',
     };
 
     context.push('/pago-comprobante', extra: extraData);
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red[800],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[100],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => context.pop(),
+            ),
+          ),
         ),
         title: const Text(
           "Finalizar Pedido",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w800),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // --- 1. TIPO DE PEDIDO ---
             const Text(
-              "¿Dónde vas a comer?",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              "¿Dónde vas a disfrutarlo?",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: Colors.black87,
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Row(
               children: [
-                _buildToggleBtn(
-                  'Llevar',
-                  Icons.shopping_bag_outlined,
-                  _selectedOrderType == 'Llevar',
-                  () {
+                _buildOrderTypeCard(
+                  title: 'Para Llevar',
+                  icon: Icons.shopping_bag_outlined,
+                  isSelected: _selectedOrderType == 'Llevar',
+                  onTap: () {
                     setState(() {
                       _selectedOrderType = 'Llevar';
                       _selectedTable = null;
                     });
                   },
                 ),
-                const SizedBox(width: 12),
-                _buildToggleBtn(
-                  'Local',
-                  Icons.restaurant,
-                  _selectedOrderType == 'Local',
-                  () {
-                    setState(() => _selectedOrderType = 'Local');
-                  },
+                const SizedBox(width: 16),
+                _buildOrderTypeCard(
+                  title: 'En Local',
+                  icon: Icons.restaurant,
+                  isSelected: _selectedOrderType == 'Local',
+                  onTap: () => setState(() => _selectedOrderType = 'Local'),
                 ),
               ],
             ),
 
-            // --- DESPLEGABLE DE MESAS DINÁMICO ---
+            // --- 2. SELECCIÓN DE MESA (Animado) ---
             AnimatedCrossFade(
               duration: const Duration(milliseconds: 300),
               crossFadeState: _selectedOrderType == 'Local'
@@ -164,45 +181,94 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               secondChild: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
                   const Text(
-                    "Mesas Disponibles:",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    "Mesas Disponibles",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: Colors.black87,
+                    ),
                   ),
-                  const SizedBox(height: 10),
-
-                  // 🔥 Lógica de carga de mesas
+                  const SizedBox(height: 12),
                   if (_isLoadingTables)
                     const Center(
-                      child: CircularProgressIndicator(color: Colors.green),
+                      child: CircularProgressIndicator(color: Colors.black),
                     )
                   else if (_availableTables.isEmpty)
-                    const Text(
-                      "No hay mesas disponibles en este momento.",
-                      style: TextStyle(color: Colors.red),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange[50],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              "Lo sentimos, no hay mesas disponibles ahora.",
+                              style: TextStyle(color: Colors.orange),
+                            ),
+                          ),
+                        ],
+                      ),
                     )
                   else
                     Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
+                      spacing: 12,
+                      runSpacing: 12,
                       children: _availableTables.map((table) {
                         bool isSel = _selectedTable?.id == table.id;
-                        return ChoiceChip(
-                          label: Text(
-                            "${table.name} (Max ${table.capacity}p)", // Muestra el nombre y capacidad
-                            style: TextStyle(
-                              color: isSel ? Colors.white : Colors.black87,
-                              fontWeight: FontWeight.bold,
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedTable = table),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSel ? Colors.black : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSel
+                                    ? Colors.black
+                                    : Colors.grey.shade300,
+                                width: 2,
+                              ),
+                              boxShadow: isSel
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.table_restaurant,
+                                  color: isSel ? Colors.white : Colors.black54,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "${table.name} (${table.capacity}p)",
+                                  style: TextStyle(
+                                    color: isSel
+                                        ? Colors.white
+                                        : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          selected: isSel,
-                          selectedColor: Colors.black,
-                          backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          onSelected: (val) =>
-                              setState(() => _selectedTable = table),
                         );
                       }).toList(),
                     ),
@@ -210,54 +276,44 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 32),
             const Divider(),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
+            // --- 3. DATOS DE COMPROBANTE ---
             const Text(
-              "Tipo de comprobante",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              "Datos de Facturación",
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                color: Colors.black87,
+              ),
             ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _buildToggleBtn(
-                  'Boleta',
-                  Icons.receipt_long,
-                  _selectedDocType == 'Boleta',
-                  () {
-                    setState(() {
-                      _selectedDocType = 'Boleta';
-                      _documentController.clear();
-                      _nameController.clear();
-                    });
-                  },
-                ),
-                const SizedBox(width: 12),
-                _buildToggleBtn(
-                  'Factura',
-                  Icons.request_quote,
-                  _selectedDocType == 'Factura',
-                  () {
-                    setState(() {
-                      _selectedDocType = 'Factura';
-                      _documentController.clear();
-                      _nameController.clear();
-                    });
-                  },
-                ),
-              ],
+            const SizedBox(height: 16),
+
+            // Toggle Boleta/Factura
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  _buildDocTypeToggle(
+                    'Boleta',
+                    Icons.receipt_long,
+                    _selectedDocType == 'Boleta',
+                  ),
+                  _buildDocTypeToggle(
+                    'Factura',
+                    Icons.request_quote,
+                    _selectedDocType == 'Factura',
+                  ),
+                ],
+              ),
             ),
 
-            const SizedBox(height: 25),
-
-            Text(
-              _selectedDocType == 'Boleta'
-                  ? "Datos Personales"
-                  : "Datos de la Empresa",
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
 
             _buildInputField(
               controller: _documentController,
@@ -268,7 +324,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               kbType: TextInputType.number,
               maxLength: _selectedDocType == 'Boleta' ? 8 : 11,
             ),
-            const SizedBox(height: 15),
+
+            const SizedBox(height: 16),
 
             _buildInputField(
               controller: _nameController,
@@ -279,84 +336,156 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ? Icons.person_outline
                   : Icons.domain,
             ),
-            const SizedBox(height: 15),
 
-            _buildInputField(
-              controller: _phoneController,
-              label: "Teléfono (Opcional)",
-              icon: Icons.phone_android,
-              kbType: TextInputType.phone,
-              maxLength: 9,
+            const SizedBox(
+              height: 100,
+            ), // Espacio para que el scroll no quede tapado por el botón inferior
+          ],
+        ),
+      ),
+
+      // --- 4. BOTÓN INFERIOR FIJO ---
+      bottomSheet: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
             ),
-
-            const SizedBox(height: 40),
-
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: _proceedToPayment,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF81C784),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+          ],
+        ),
+        child: SafeArea(
+          child: SizedBox(
+            width: double.infinity,
+            height: 60,
+            child: ElevatedButton(
+              onPressed: _proceedToPayment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                elevation: 5,
+                shadowColor: Colors.black.withOpacity(0.4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Ir a Pagar",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "Ir a Pagar",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      letterSpacing: 0.5,
                     ),
-                    const SizedBox(width: 10),
-                    Text(
+                  ),
+                  const SizedBox(width: 15),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
                       "S/${widget.totalAmount.toStringAsFixed(2)}",
                       style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 20),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildToggleBtn(
-    String text,
-    IconData icon,
-    bool isSelected,
-    VoidCallback onTap,
-  ) {
+  // --- WIDGETS AUXILIARES ---
+
+  Widget _buildOrderTypeCard({
+    required String title,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 20),
           decoration: BoxDecoration(
             color: isSelected ? Colors.black : Colors.white,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? Colors.black : Colors.grey.shade300,
+              color: isSelected ? Colors.black : Colors.grey.shade200,
+              width: 2,
             ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? Colors.white : Colors.black54,
+                size: 32,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDocTypeToggle(String text, IconData icon, bool isSelected) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedDocType = text;
+            _documentController.clear();
+            _nameController.clear();
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 5,
                     ),
                   ]
                 : [],
@@ -366,14 +495,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             children: [
               Icon(
                 icon,
-                color: isSelected ? Colors.white : Colors.black54,
-                size: 20,
+                color: isSelected ? Colors.black : Colors.grey[600],
+                size: 18,
               ),
               const SizedBox(width: 8),
               Text(
                 text,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.black87,
+                  color: isSelected ? Colors.black : Colors.grey[600],
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -395,19 +524,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       controller: controller,
       keyboardType: kbType,
       maxLength: maxLength,
+      style: const TextStyle(fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: TextStyle(
+          color: Colors.grey[600],
+          fontWeight: FontWeight.normal,
+        ),
         counterText: '',
-        prefixIcon: Icon(icon, color: Colors.grey[600]),
+        prefixIcon: Icon(icon, color: Colors.black54),
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.grey.shade200, width: 2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.black, width: 2),
         ),
       ),
     );

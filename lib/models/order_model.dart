@@ -9,6 +9,7 @@ class OrderModel {
   final String paymentMethod;
   final String orderType;
   final String createdAt;
+  final int? estimatedTime; // 🔥 NUEVO: Atrapamos los minutos del admin
   final List<OrderDetailModel> items;
 
   OrderModel({
@@ -19,6 +20,7 @@ class OrderModel {
     required this.paymentMethod,
     required this.orderType,
     required this.createdAt,
+    this.estimatedTime,
     required this.items,
   });
 
@@ -44,9 +46,13 @@ class OrderModel {
       userId: json['user_id'] ?? 0,
       total: double.tryParse(json['total']?.toString() ?? '0') ?? 0.0,
       status: json['status'] ?? 'validating',
-      paymentMethod: json['payment_method'] ?? '',
-      orderType: json['order_type'] ?? 'Delivery',
+      paymentMethod: json['payment_method'] ?? 'Desconocido',
+      orderType: json['order_type'] ?? 'Para Llevar',
       createdAt: json['created_at'] ?? '',
+      // 🔥 Lee los minutos. Cambia 'estimated_time' si en tu BD se llama diferente (ej: 'tiempo_estimado')
+      estimatedTime: json['estimated_time'] != null
+          ? int.tryParse(json['estimated_time'].toString())
+          : null,
       items: productList,
     );
   }

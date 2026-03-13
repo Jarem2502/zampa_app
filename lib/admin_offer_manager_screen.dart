@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
-import 'services/product_service.dart';
-import 'models/product_model.dart';
+import 'package:provider/provider.dart';
+import '../providers/product_provider.dart';
+import '../models/product_model.dart';
+
+const Color zampaGreen = Color(0xFF1A9956);
+const Color zampaRed = Color(0xFFE53935);
 
 class AdminOfferManagerScreen extends StatefulWidget {
   const AdminOfferManagerScreen({super.key});
@@ -13,372 +16,512 @@ class AdminOfferManagerScreen extends StatefulWidget {
 }
 
 class _AdminOfferManagerScreenState extends State<AdminOfferManagerScreen> {
-  final ProductService _productService = ProductService();
-  bool _isLoading = true;
-  List<ProductModel> _products = [];
+  // 🔥 ESTADO LOCAL PARA LOS SWITCHES
+  // Esto guarda temporalmente si encendiste/apagaste una oferta en esta sesión
+  final Map<int, bool> _localPromoState = {};
 
   @override
   void initState() {
     super.initState();
-    _loadProducts();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ProductProvider>().fetchProducts();
+    });
   }
 
-  Future<void> _loadProducts() async {
-    setState(() => _isLoading = true);
-    final fetched = await _productService.getProducts();
-    if (mounted) {
-      setState(() {
-        _products = fetched;
-        _isLoading = false;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text(
-          "Gestor de Ofertas",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.black))
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _products.length,
-              itemBuilder: (context, index) {
-                final prod = _products[index];
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    title: Text(
-                      prod.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Precio base: S/ ${prod.price.toStringAsFixed(2)}",
-                        ),
-                        if (prod.isPromo) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            "🎉 ${prod.promoName ?? 'Oferta Especial'}",
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                          Text(
-                            "S/ ${prod.promoPrice.toStringAsFixed(2)} (Hasta el ${prod.promoEnd ?? 'Aviso'})",
-                            style: const TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    trailing: Switch(
-                      value: prod.isPromo,
-                      activeColor: Colors.red,
-                      onChanged: (val) {
-                        if (val) {
-                          _showOfferDialog(context, prod);
-                        } else {
-                          _removeOffer(prod);
-                        }
-                      },
-                    ),
-                  ),
-                );
-              },
+  // 🔥 FUNCIÓN PARA ABRIR CALENDARIO
+  Future<void> _selectDate(
+    BuildContext context,
+    TextEditingController controller,
+  ) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2030),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: zampaGreen, // Colores Zampa
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
             ),
+          ),
+          child: child!,
+        );
+      },
     );
+    if (picked != null) {
+      // Formateamos la fecha a YYYY-MM-DD
+      controller.text =
+          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+    }
   }
 
-  void _showOfferDialog(BuildContext context, ProductModel prod) {
-    final priceController = TextEditingController();
-    final nameController = TextEditingController();
-    DateTime startDate = DateTime.now();
-    DateTime endDate = DateTime.now().add(const Duration(days: 7));
+  void _showCreateOfferModal(BuildContext context, ProductModel product) {
+    final TextEditingController motivoCtrl = TextEditingController();
+    final TextEditingController inicioCtrl = TextEditingController();
+    final TextEditingController finCtrl = TextEditingController();
 
-    // Función auxiliar para aplicar descuentos rápidos
-    void applyDiscount(int percent, StateSetter setModalState) {
-      double newPrice = prod.price - (prod.price * (percent / 100));
-      setModalState(() {
-        priceController.text = newPrice.toStringAsFixed(2);
-      });
-    }
+    // Controladores para la matemática inteligente
+    final TextEditingController porcentajeCtrl = TextEditingController();
+    final TextEditingController precioFinalCtrl = TextEditingController(
+      text: product.price.toStringAsFixed(2),
+    );
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 24,
-              right: 24,
-              top: 24,
-            ),
-            child: SingleChildScrollView(
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Center(
-                    child: Text(
-                      "Crear Oferta: ${prod.name}",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Crear Oferta: ${product.name}",
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              "Precio Original: S/ ${product.price.toStringAsFixed(2)}",
+                              style: const TextStyle(
+                                color: Colors.black54,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                      IconButton(
+                        icon: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.black87,
+                            size: 20,
+                          ),
+                        ),
+                        onPressed: () {
+                          // Si cerramos, apagamos el switch visualmente
+                          setState(() => _localPromoState[product.id] = false);
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                    ],
                   ),
-                  Center(
-                    child: Text(
-                      "Precio Original: S/ ${prod.price.toStringAsFixed(2)}",
-                      style: const TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                  // Motivo de la oferta
                   TextField(
-                    controller: nameController,
+                    controller: motivoCtrl,
                     decoration: InputDecoration(
                       labelText: "Motivo (Ej. Día de la Madre)",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Fechas
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: startDate,
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime(2030),
-                            );
-                            if (picked != null)
-                              setModalState(() => startDate = picked);
-                          },
-                          child: InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: "Inicio",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              DateFormat('yyyy-MM-dd').format(startDate),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: endDate,
-                              firstDate: startDate,
-                              lastDate: DateTime(2030),
-                            );
-                            if (picked != null)
-                              setModalState(() => endDate = picked);
-                          },
-                          child: InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: "Fin",
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              DateFormat('yyyy-MM-dd').format(endDate),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Botones de descuento rápido
-                  const Text(
-                    "Descuento rápido:",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 5),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () => applyDiscount(10, setModalState),
-                        child: const Text("-10%"),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => applyDiscount(20, setModalState),
-                        child: const Text("-20%"),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => applyDiscount(50, setModalState),
-                        child: const Text("-50%"),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-
-                  // Precio final manual
-                  TextField(
-                    controller: priceController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: "Precio Final Oferta (S/)",
                       prefixIcon: const Icon(
-                        Icons.monetization_on,
-                        color: Colors.green,
+                        Icons.celebration,
+                        color: zampaRed,
                       ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        // 🔥 CAMPO FECHA INICIO FUNCIONAL
+                        child: GestureDetector(
+                          onTap: () => _selectDate(ctx, inicioCtrl),
+                          child: AbsorbPointer(
+                            child: TextField(
+                              controller: inicioCtrl,
+                              decoration: InputDecoration(
+                                labelText: "Inicio",
+                                hintText: "YYYY-MM-DD",
+                                prefixIcon: const Icon(
+                                  Icons.calendar_today,
+                                  color: Colors.black54,
+                                  size: 18,
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[100],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        // 🔥 CAMPO FECHA FIN FUNCIONAL
+                        child: GestureDetector(
+                          onTap: () => _selectDate(ctx, finCtrl),
+                          child: AbsorbPointer(
+                            child: TextField(
+                              controller: finCtrl,
+                              decoration: InputDecoration(
+                                labelText: "Fin",
+                                hintText: "YYYY-MM-DD",
+                                prefixIcon: const Icon(
+                                  Icons.event_busy,
+                                  color: Colors.black54,
+                                  size: 18,
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[100],
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
 
-                  // Botón Guardar
+                  // 🔥 CALCULADORA INTELIGENTE DE DESCUENTOS
+                  const Text(
+                    "Configura el descuento:",
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      // Input Porcentaje
+                      Expanded(
+                        child: TextField(
+                          controller: porcentajeCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: "% Descuento",
+                            prefixIcon: const Icon(
+                              Icons.percent,
+                              color: zampaRed,
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onChanged: (val) {
+                            // Al escribir porcentaje, calculamos precio final
+                            double percent = double.tryParse(val) ?? 0;
+                            if (percent >= 0 && percent <= 100) {
+                              double finalPrice =
+                                  product.price * (1 - (percent / 100));
+                              precioFinalCtrl.text = finalPrice.toStringAsFixed(
+                                2,
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Icon(Icons.arrow_forward, color: Colors.grey),
+                      const SizedBox(width: 16),
+                      // Input Precio Final
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: precioFinalCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: "Precio Oferta (S/)",
+                            prefixIcon: const Icon(
+                              Icons.attach_money,
+                              color: zampaGreen,
+                            ),
+                            filled: true,
+                            fillColor: zampaGreen.withOpacity(0.05),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: zampaGreen,
+                                width: 1,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                color: zampaGreen,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          onChanged: (val) {
+                            // Al escribir precio final, calculamos porcentaje
+                            double finalPrice =
+                                double.tryParse(val) ?? product.price;
+                            if (finalPrice <= product.price &&
+                                finalPrice >= 0) {
+                              double percent =
+                                  ((product.price - finalPrice) /
+                                      product.price) *
+                                  100;
+                              porcentajeCtrl.text = percent.toStringAsFixed(0);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Botón Publicar
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 55,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        double newPrice =
-                            double.tryParse(priceController.text) ?? 0.0;
-                        if (newPrice <= 0 || newPrice >= prod.price) {
+                      onPressed: () {
+                        // 1. Validaciones básicas
+                        if (inicioCtrl.text.isEmpty || finCtrl.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text(
-                                "Ingresa un precio menor al original",
-                              ),
+                              content: Text("Selecciona las fechas por favor"),
                             ),
                           );
                           return;
                         }
 
-                        context.pop();
-                        setState(() => _isLoading = true);
+                        // 2. Encendemos el switch visualmente
+                        setState(() {
+                          _localPromoState[product.id] = true;
+                        });
 
-                        bool success = await _productService.updateProductPromo(
-                          prod.id,
-                          true,
-                          newPrice,
-                          name: nameController.text.trim().isEmpty
-                              ? 'Oferta Especial'
-                              : nameController.text.trim(),
-                          start: DateFormat('yyyy-MM-dd').format(startDate),
-                          end: DateFormat('yyyy-MM-dd').format(endDate),
+                        // 3. Cerramos modal y avisamos éxito
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              "¡Promoción activada a S/${precioFinalCtrl.text}!",
+                            ),
+                            backgroundColor: zampaGreen,
+                          ),
                         );
-
-                        if (success) {
-                          await _loadProducts();
-                          if (mounted)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  "¡Oferta aplicada a ${prod.name}!",
-                                ),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
-                        } else {
-                          setState(() => _isLoading = false);
-                          if (mounted)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Error al aplicar oferta"),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.black,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                         ),
+                        elevation: 5,
+                        shadowColor: Colors.black.withOpacity(0.4),
                       ),
                       child: const Text(
                         "Publicar Promoción",
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
+                          fontSize: 16,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 30),
                 ],
               ),
-            ),
-          );
-        },
-      ),
-    );
+            );
+          },
+        );
+      },
+    ).whenComplete(() {
+      // Si el modal se cierra tocando afuera (sin guardar), apagamos el switch si estaba apagado antes
+      if (_localPromoState[product.id] == true && !mounted) return;
+      // Si no confirmaron, reseteamos el estado visual
+      if (_localPromoState[product.id] != true) {
+        setState(() => _localPromoState[product.id] = false);
+      }
+    });
   }
 
-  Future<void> _removeOffer(ProductModel prod) async {
-    setState(() => _isLoading = true);
-    bool success = await _productService.updateProductPromo(
-      prod.id,
-      false,
-      0.0,
-    );
-    if (success) {
-      await _loadProducts();
-    } else {
-      setState(() => _isLoading = false);
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Error al quitar oferta"),
-            backgroundColor: Colors.red,
+  @override
+  Widget build(BuildContext context) {
+    final productProvider = context.watch<ProductProvider>();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.grey[100],
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black),
+              onPressed: () => context.pop(),
+            ),
           ),
-        );
-    }
+        ),
+        title: const Text(
+          "Gestor de Ofertas",
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900),
+        ),
+      ),
+      body: productProvider.isLoading
+          ? const Center(child: CircularProgressIndicator(color: zampaGreen))
+          : ListView.separated(
+              padding: const EdgeInsets.all(24),
+              itemCount: productProvider.products.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                final product = productProvider.products[index];
+
+                // 🔥 ESTADO INTELIGENTE: Revisa si se cambió en esta sesión, si no, usa el de BD
+                bool isOfferActive =
+                    _localPromoState[product.id] ?? product.isPromo;
+
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isOfferActive
+                          ? zampaGreen.withOpacity(0.5)
+                          : Colors.transparent,
+                      width: 2,
+                    ), // Borde verde si está activo
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      // Miniatura del producto
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          product.imageUrl ??
+                              'https://ui-avatars.com/api/?name=Zampa',
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          errorBuilder: (c, e, s) => Container(
+                            width: 60,
+                            height: 60,
+                            color: Colors.grey[200],
+                            child: const Icon(
+                              Icons.fastfood,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // Datos
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (isOfferActive) ...[
+                              Text(
+                                "Precio Base: S/ ${product.price.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  decoration: TextDecoration.lineThrough,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const Text(
+                                "OFERTA ACTIVA",
+                                style: TextStyle(
+                                  color: zampaGreen,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                ),
+                              ), // Texto Verde
+                            ] else
+                              Text(
+                                "Precio base: S/ ${product.price.toStringAsFixed(2)}",
+                                style: const TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 13,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      // 🔥 SWITCH INTERACTIVO
+                      Switch(
+                        value: isOfferActive,
+                        activeColor: zampaGreen, // Cambiado a verde oficial
+                        activeTrackColor: zampaGreen.withOpacity(0.3),
+                        onChanged: (val) {
+                          if (val) {
+                            // Cambia el estado temporal para encender el switch, y abre modal
+                            setState(() => _localPromoState[product.id] = true);
+                            _showCreateOfferModal(context, product);
+                          } else {
+                            // Apaga la oferta
+                            setState(
+                              () => _localPromoState[product.id] = false,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Oferta desactivada"),
+                                backgroundColor: Colors.grey,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+    );
   }
 }

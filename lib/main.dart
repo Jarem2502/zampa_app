@@ -5,16 +5,17 @@ import 'package:provider/provider.dart';
 // Importación de modelos
 import 'models/product_model.dart';
 
-// Importación de providers
+// Importación de providers (🔥 Agregamos ProductProvider)
 import 'providers/cart_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/admin_provider.dart';
+import 'providers/product_provider.dart';
 
-// Importación de pantallas
+// Importación de pantallas (🔥 Cambiamos MenuScreen por HomeScreen)
 import 'login_screen.dart';
 import 'register_screen.dart';
 import 'recovery_screens.dart';
-import 'menu_screen.dart';
+import 'home_screen.dart'; // <-- Aquí está el cambio
 import 'cart_screen.dart';
 import 'product_detail_screen.dart';
 import 'admin_login_screen.dart';
@@ -38,6 +39,9 @@ void main() {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
+        ChangeNotifierProvider(
+          create: (_) => ProductProvider(),
+        ), // 🔥 Registramos el nuevo Provider
       ],
       child: const MyApp(),
     ),
@@ -47,7 +51,6 @@ void main() {
 final GoRouter _router = GoRouter(
   initialLocation: '/',
   routes: [
-    // El Login es la ruta raíz '/'
     GoRoute(path: '/', builder: (context, state) => const LoginScreen()),
 
     GoRoute(
@@ -55,7 +58,6 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const RegisterScreen(),
     ),
 
-    // RUTAS DE RECUPERACIÓN
     GoRoute(
       path: '/recuperar',
       builder: (context, state) => const RecoveryScreen(),
@@ -78,7 +80,8 @@ final GoRouter _router = GoRouter(
       },
     ),
 
-    GoRoute(path: '/menu', builder: (context, state) => const MenuScreen()),
+    // 🔥 Actualizamos la ruta para que apunte al nuevo HomeScreen
+    GoRoute(path: '/menu', builder: (context, state) => const HomeScreen()),
     GoRoute(path: '/carrito', builder: (context, state) => const CartScreen()),
 
     GoRoute(
@@ -108,7 +111,8 @@ final GoRouter _router = GoRouter(
       builder: (context, state) => const ChatBotScreen(),
     ),
     GoRoute(
-      path: '/profile',
+      path:
+          '/profile', // Fíjate que el drawer llama a '/perfil', si usas '/profile' debes actualizar el drawer
       builder: (context, state) => const ProfileScreen(),
     ),
     GoRoute(path: '/invite', builder: (context, state) => const InviteScreen()),
@@ -171,9 +175,9 @@ class MyApp extends StatelessWidget {
       routerConfig: _router,
       theme: ThemeData(
         useMaterial3: true,
-        primaryColor: Colors.black,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-        scaffoldBackgroundColor: Colors.white,
+        primaryColor: Colors.black, // 🔥 Ajustado al estilo Zampa
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.black),
+        scaffoldBackgroundColor: Colors.black, // 🔥 Ajustado al estilo Zampa
       ),
     );
   }

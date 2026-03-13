@@ -32,25 +32,36 @@ class CartProvider with ChangeNotifier {
     int index = _items.indexWhere((item) => item.product.id == product.id);
 
     if (index >= 0) {
-      _items[index].quantity += quantity;
+      int newTotal = _items[index].quantity + quantity;
+      // 🔥 Validamos silenciosamente contra el stock
+      if (newTotal > product.stock) {
+        _items[index].quantity = product.stock;
+      } else {
+        _items[index].quantity = newTotal;
+      }
     } else {
-      _items.add(CartItem(product: product, quantity: quantity));
+      int finalQty = quantity > product.stock ? product.stock : quantity;
+      _items.add(CartItem(product: product, quantity: finalQty));
     }
     notifyListeners();
   }
 
-  void removeFromCart(int productId) {
-    _items.removeWhere((item) => item.product.id == productId);
+  void removeFromCart(CartItem targetItem) {
+    _items.removeWhere((item) => item == targetItem);
     notifyListeners();
   }
 
-  void updateQuantity(int productId, int newQuantity) {
-    int index = _items.indexWhere((item) => item.product.id == productId);
+  void updateQuantity(CartItem targetItem, int newQuantity) {
+    int index = _items.indexOf(targetItem);
     if (index >= 0) {
       if (newQuantity <= 0) {
-        removeFromCart(productId);
-      } else {
+        removeFromCart(targetItem);
+      } else if (newQuantity <= _items[index].product.stock) {
         _items[index].quantity = newQuantity;
+        notifyListeners();
+      } else {
+        // 🔥 Si intentan pasarse del límite en el carrito
+        _items[index].quantity = _items[index].product.stock;
         notifyListeners();
       }
     }
