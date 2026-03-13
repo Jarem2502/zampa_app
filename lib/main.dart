@@ -21,6 +21,7 @@ import 'product_detail_screen.dart';
 import 'admin_login_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_offer_manager_screen.dart';
+import 'admin_menu_screen.dart';
 import 'chatbot_screen.dart';
 import 'checkout_screen.dart';
 import 'completed_order_detail_screen.dart';
@@ -104,6 +105,7 @@ final GoRouter _router = GoRouter(
       path: '/admin-offers',
       builder: (context, state) => const AdminOfferManagerScreen(),
     ),
+    GoRoute(path: '/admin-menu', builder: (context, state) => const AdminMenuScreen()), // 🔥 Ruta para Mi Carta
 
     GoRoute(path: '/orders', builder: (context, state) => const OrdersScreen()),
     GoRoute(

@@ -11,7 +11,8 @@ class ProductModel {
   final String? promoStart;
   final String? promoEnd;
   final bool isAvailable;
-  final int stock; // 🔥 VARIABLE OCULTA PARA VALIDAR
+  final int stock; 
+  final int salesCount; // 🔥 NUEVO: Guardará la cantidad de ventas reales
 
   ProductModel({
     required this.id,
@@ -26,7 +27,8 @@ class ProductModel {
     this.promoStart,
     this.promoEnd,
     this.isAvailable = true,
-    this.stock = 999, // Por si algún producto no tiene inventario
+    this.stock = 999, 
+    this.salesCount = 0, // 🔥 NUEVO
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
@@ -47,13 +49,13 @@ class ProductModel {
       promoName: json['promo_name'],
       promoStart: json['promo_start'],
       promoEnd: json['promo_end'],
-      isAvailable:
-          json['is_available'] == 1 ||
-          json['is_available'] == true ||
+      isAvailable: 
+          json['is_available'] == 1 || 
+          json['is_available'] == true || 
           json['is_available'] == '1',
-      stock:
-          int.tryParse(json['stock']?.toString() ?? '999') ??
-          999, // 🔥 ATRAPAMOS EL STOCK
+      stock: json['stock'] ?? 999,
+      // 🔥 NUEVO: Leemos el cálculo SQL de Laravel
+      salesCount: int.tryParse(json['sales_count']?.toString() ?? '0') ?? 0, 
     );
   }
 }
