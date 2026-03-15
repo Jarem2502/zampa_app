@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_application_zampa/services/pusher_config.dart';
 import 'package:go_router/go_router.dart';
 import '../services/order_service.dart';
 import '../models/order_model.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
-  final int
-  orderId; // 🔥 CORRECCIÓN: Ya no es dynamic, especificamos que es un 'int'
+  final int orderId;
   final String currentStatus;
 
   const OrderTrackingScreen({
@@ -20,6 +21,10 @@ class OrderTrackingScreen extends StatefulWidget {
 }
 
 class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
+  final PusherConfig _pusherConfig = PusherConfig();
+  String _mensaje = "";
+  Timer? _messageTimer;
+
   late String _status;
   int? _estimatedMinutes;
   final _orderService = OrderService();
@@ -55,6 +60,41 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   @override
   void initState() {
     super.initState();
+
+    _pusherConfig.initPusher(
+      channelName: "zampa-tracking", // El canal para los pedidos
+      eventName: "estado-actualizado", // El evento que lanzará Laravel
+      onEventTriggered: (event) {
+        if (!mounted) return;
+        dynamic data;
+
+        if (event.data is String) {
+          data = jsonDecode(event.data.toString());
+        } else {
+          data = event.data;
+        }
+
+        // Aquí recibimos el texto (ej. "¡Tu hamburguesa ya está en camino!")
+        String mensajeRecibido = data['mensaje'] ?? "Actualización de pedido";
+
+        setState(() {
+          _mensaje = mensajeRecibido;
+        });
+
+        _mostrarAlerta(mensajeRecibido);
+
+        // 🔥 NUEVO TRUCO: Borrar el texto después de 6 segundos
+        _messageTimer?.cancel(); // Cancelamos si había uno anterior
+        _messageTimer = Timer(const Duration(seconds: 6), () {
+          if (mounted) {
+            setState(() {
+              _mensaje = ""; // Lo vaciamos para que desaparezca de la pantalla
+            });
+          }
+        });
+      },
+    );
+
     _status = widget.currentStatus;
     _fetchCurrentOrderData();
     _startTracking();
@@ -62,6 +102,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
   @override
   void dispose() {
+    _pusherConfig.disconnect(); // Apagamos la escucha al salir
     _timer?.cancel();
     super.dispose();
   }
@@ -207,6 +248,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ),
             ),
             const SizedBox(height: 24),
+
+            Text(_mensaje),
 
             ListView.builder(
               shrinkWrap: true,
@@ -378,6 +421,44 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _mostrarAlerta(String contenido) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.fastfood, color: Color(0xFF1A9956)),
+              SizedBox(width: 8),
+              Text(
+                "¡Aviso Zampa!",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Text(contenido, style: const TextStyle(fontSize: 16)),
+          actions: [
+            TextButton(
+              child: const Text(
+                "Genial",
+                style: TextStyle(
+                  color: Color(0xFF1A9956),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }

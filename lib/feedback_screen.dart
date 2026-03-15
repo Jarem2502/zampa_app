@@ -104,8 +104,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                   controller: textController,
                   maxLines: 4,
                   decoration: InputDecoration(
-                    hintText:
-                        "Cuéntanos tu experiencia con nuestro local, la comida o el delivery...",
+                    hintText: "Cuéntanos tu experiencia",
                     filled: true,
                     fillColor: Colors.grey[100],
                     border: OutlineInputBorder(

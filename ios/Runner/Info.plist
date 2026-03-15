@@ -2,6 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+    <string>Zampa necesita acceso a tu cámara para que puedas tomar fotos a tus nuevos productos.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Zampa necesita acceso a tu galería para subir las imágenes de tu menú.</string>
+
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Zampa necesita saber tu ubicación para desbloquear las promociones exclusivas en tu ciudad.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Zampa necesita saber tu ubicación para avisarte de ofertas cercanas.</string>
+
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

@@ -32,7 +32,6 @@ class ZampaDrawer extends StatelessWidget {
               right: 24,
             ),
             decoration: const BoxDecoration(
-              // 🔥 ADIÓS NEGRO: Hola degradado fresco
               gradient: LinearGradient(
                 colors: [Color(0xFF23B567), zampaGreen],
                 begin: Alignment.topLeft,
@@ -127,6 +126,16 @@ class ZampaDrawer extends StatelessWidget {
                   onTap: () {
                     context.pop();
                     context.push('/invite');
+                  },
+                ),
+                // 🔥 AQUÍ ESTÁ DE REGRESO LA OPCIÓN DE RESEÑAS
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.star_rate_rounded,
+                  title: 'Reseñas de Clientes',
+                  onTap: () {
+                    context.pop();
+                    context.push('/feedback');
                   },
                 ),
                 _buildDrawerItem(
