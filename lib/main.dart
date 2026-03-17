@@ -42,7 +42,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => AdminProvider()),
         ChangeNotifierProvider(
           create: (_) => ProductProvider(),
-        ), // 🔥 Registramos el nuevo Provider
+        ),
       ],
       child: const MyApp(),
     ),

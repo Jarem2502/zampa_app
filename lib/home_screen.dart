@@ -10,6 +10,9 @@ import 'services/location_service.dart';
 import 'zampa_drawer.dart';
 import 'models/product_model.dart';
 
+import 'services/pusher_config.dart';
+import 'dart:convert';
+
 const Color zampaGreen = Color(0xFF1A9956);
 const Color zampaRed = Color(0xFFE53935);
 
@@ -21,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final PusherConfig _pusherConfig = PusherConfig();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   int _currentIndex = 0;
@@ -50,8 +54,31 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ProductProvider>().fetchProducts();
-      _checkUserLocation();
+      _checkUserLocation(); 
     });
+
+    _pusherConfig.initPusher(
+      channelName: "canal-promos", 
+      eventName: "nueva-promo",
+      onEventTriggered: (event) {
+        if (!mounted) return;
+        dynamic data;
+        
+        if (event.data is String) {
+          data = jsonDecode(event.data.toString());
+        } else {
+          data = event.data;
+        }
+        
+        String mensajePromo = data['mensaje'] ?? "¡Tenemos nuevas ofertas para ti!";
+
+        // 1. Mostrar la alerta en pantalla
+        _mostrarAlertaPromo(mensajePromo);
+
+        // 2. ¡MAGIA! Recargamos los productos en tiempo real para que la oferta aparezca
+        context.read<ProductProvider>().fetchProducts();
+      },
+    );
   }
 
   Future<void> _checkUserLocation() async {
@@ -67,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _pusherConfig.disconnect();
     super.dispose();
   }
 
@@ -114,20 +142,13 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_currentIndex == 0) ...[
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 10.0,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     "Hola, ${authProvider.user?.name.split(' ')[0] ?? 'Zampador'}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black54,
-                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black54),
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -173,9 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       label: Text(category['name']),
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : Colors.black87,
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       ),
                       selected: isSelected,
                       selectedColor: zampaGreen,
@@ -200,16 +219,12 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 color: _isLoadingLocation
                     ? Colors.blue[50]
-                    : (_isInCity
-                          ? zampaGreen.withOpacity(0.1)
-                          : zampaRed.withOpacity(0.1)),
+                    : (_isInCity ? zampaGreen.withOpacity(0.1) : zampaRed.withOpacity(0.1)),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: _isLoadingLocation
                       ? Colors.blue[200]!
-                      : (_isInCity
-                            ? zampaGreen.withOpacity(0.3)
-                            : zampaRed.withOpacity(0.3)),
+                      : (_isInCity ? zampaGreen.withOpacity(0.3) : zampaRed.withOpacity(0.3)),
                 ),
               ),
               child: Row(
@@ -218,9 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     _isLoadingLocation
                         ? Icons.location_searching
                         : (_isInCity ? Icons.location_on : Icons.location_off),
-                    color: _isLoadingLocation
-                        ? Colors.blue
-                        : (_isInCity ? zampaGreen : zampaRed),
+                    color: _isLoadingLocation ? Colors.blue : (_isInCity ? zampaGreen : zampaRed),
                     size: 24,
                   ),
                   const SizedBox(width: 10),
@@ -254,11 +267,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     "Los Favoritos de la Gente 🔥",
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.black87,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87),
                   ),
                   SizedBox(height: 4),
                   Text(
@@ -270,17 +279,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
           Expanded(
-            child:
-                productProvider.isLoading ||
-                    (_currentIndex == 1 && _isLoadingLocation)
-                ? const Center(
-                    child: CircularProgressIndicator(color: zampaGreen),
-                  )
-                : _buildCurrentTabContent(
-                    menuProducts,
-                    promoProducts,
-                    topProducts,
-                  ),
+            child: productProvider.isLoading || (_currentIndex == 1 && _isLoadingLocation)
+                ? const Center(child: CircularProgressIndicator(color: zampaGreen))
+                : _buildCurrentTabContent(menuProducts, promoProducts, topProducts),
           ),
         ],
       ),
@@ -297,14 +298,8 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: Colors.grey,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'La Carta',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.local_offer),
-            label: 'Promos',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'La Carta'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_offer), label: 'Promos'),
           BottomNavigationBarItem(icon: Icon(Icons.star), label: 'Top'),
         ],
       ),
@@ -321,23 +316,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ? _buildEmptyState("No hay productos en esta categoría.")
           : _buildGrid(menuProducts);
     } else if (_currentIndex == 1) {
-      if (!_isInCity)
-        return _buildEmptyState(
-          "Estás fuera de la zona de promociones.",
-          icon: Icons.location_off,
-        );
+      if (!_isInCity) {
+        return _buildEmptyState("Estás fuera de la zona de promociones.", icon: Icons.location_off);
+      }
       return promoProducts.isEmpty
-          ? _buildEmptyState(
-              "No hay promociones activas por ahora.",
-              icon: Icons.sentiment_dissatisfied,
-            )
+          ? _buildEmptyState("No hay promociones activas por ahora.", icon: Icons.sentiment_dissatisfied)
           : _buildGrid(promoProducts);
     } else {
       return topProducts.isEmpty
-          ? _buildEmptyState(
-              "Aún no hay suficientes ventas para generar el ranking.",
-              icon: Icons.leaderboard,
-            )
+          ? _buildEmptyState("Aún no hay suficientes ventas para generar el ranking.", icon: Icons.leaderboard)
           : _buildGrid(topProducts, isTopList: true);
     }
   }
@@ -361,6 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 🔥 WIDGET CORREGIDO: Evita el desbordamiento (Bottom Overflowed)
   Widget _buildProductCard(ProductModel product, {int? rank}) {
     return GestureDetector(
       onTap: () => context.push('/detalle', extra: product),
@@ -379,76 +367,47 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // PARTE SUPERIOR: IMAGEN
             Expanded(
               flex: 45,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
                     Image.network(
-                      product.imageUrl ??
-                          'https://ui-avatars.com/api/?name=Zampa&background=1A9956&color=fff',
+                      product.imageUrl ?? 'https://ui-avatars.com/api/?name=Zampa&background=1A9956&color=fff',
                       fit: BoxFit.cover,
                       errorBuilder: (c, e, s) => Container(
                         color: Colors.grey[100],
-                        child: const Center(
-                          child: Icon(Icons.image, color: Colors.grey),
-                        ),
+                        child: const Center(child: Icon(Icons.image, color: Colors.grey)),
                       ),
                     ),
                     if (rank != null)
                       Positioned(
-                        top: 8,
-                        left: 8,
+                        top: 8, left: 8,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.orange,
                             borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 4,
-                              ),
-                            ],
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4)],
                           ),
                           child: Text(
                             "🏆 #$rank Favorito",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                            ),
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900),
                           ),
                         ),
                       ),
-                    // 🔥 Solo muestra la etiqueta PROMO si el reloj confirma que es hoy
                     if (product.isActivePromo && rank == null)
                       Positioned(
-                        top: 8,
-                        left: 8,
+                        top: 8, left: 8,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: zampaRed,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: zampaRed, borderRadius: BorderRadius.circular(8)),
                           child: const Text(
                             "PROMO",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
@@ -457,41 +416,34 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // PARTE INFERIOR: TEXTOS Y BOTÓN
             Expanded(
               flex: 55,
               child: Padding(
                 padding: const EdgeInsets.all(12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          product.description.isEmpty
-                              ? "Delicioso producto preparado al momento."
-                              : product.description,
-                          style: const TextStyle(
-                            color: Colors.black54,
-                            fontSize: 11,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                    // Nombre
+                    Text(
+                      product.name,
+                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
+                      maxLines: 1, // Restringimos a 1 línea
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 4),
+                    
+                    // Descripción Flexible (Crea los puntitos automáticamente sin romper la pantalla)
+                    Expanded(
+                      child: Text(
+                        product.description.isEmpty ? "Delicioso producto preparado al momento." : product.description,
+                        style: const TextStyle(color: Colors.black54, fontSize: 11),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    
+                    // Fila de Precios y Botón de Agregar
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.end,
@@ -499,8 +451,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              // 🔥 Si está activa la promo, tacha el precio original
                               if (product.isActivePromo)
                                 Text(
                                   "S/${product.price.toStringAsFixed(2)}",
@@ -510,7 +462,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontSize: 11,
                                   ),
                                 ),
-                              // 🔥 Mostramos el precio correcto según el día
                               Text(
                                 "S/${product.currentPrice.toStringAsFixed(2)}",
                                 style: const TextStyle(
@@ -537,15 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           },
                           child: Container(
                             padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: zampaGreen,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                            decoration: const BoxDecoration(color: zampaGreen, shape: BoxShape.circle),
+                            child: const Icon(Icons.add, color: Colors.white, size: 20),
                           ),
                         ),
                       ],
@@ -560,10 +504,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyState(
-    String message, {
-    IconData icon = Icons.fastfood_outlined,
-  }) {
+  Widget _buildEmptyState(String message, {IconData icon = Icons.fastfood_outlined}) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -575,11 +516,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+              style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ],
         ),
@@ -601,11 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
         fit: BoxFit.contain,
         errorBuilder: (c, e, s) => const Text(
           "ZAMPA",
-          style: TextStyle(
-            color: zampaGreen,
-            fontWeight: FontWeight.w900,
-            fontSize: 24,
-          ),
+          style: TextStyle(color: zampaGreen, fontWeight: FontWeight.w900, fontSize: 24),
         ),
       ),
       centerTitle: true,
@@ -614,34 +547,19 @@ class _HomeScreenState extends State<HomeScreen> {
           alignment: Alignment.center,
           children: [
             IconButton(
-              icon: const Icon(
-                Icons.shopping_cart_outlined,
-                color: Colors.black,
-                size: 26,
-              ),
+              icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black, size: 26),
               onPressed: () => context.push('/carrito'),
             ),
             if (cartProvider.itemCount > 0)
               Positioned(
-                top: 8,
-                right: 8,
+                top: 8, right: 8,
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: zampaRed,
-                    shape: BoxShape.circle,
-                  ),
-                  constraints: const BoxConstraints(
-                    minWidth: 18,
-                    minHeight: 18,
-                  ),
+                  decoration: const BoxDecoration(color: zampaRed, shape: BoxShape.circle),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
                   child: Text(
                     '${cartProvider.itemCount}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -650,6 +568,45 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  void _mostrarAlertaPromo(String contenido) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: Color(0xFFE53935), width: 2), 
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.local_fire_department, color: Color(0xFFE53935), size: 28),
+              SizedBox(width: 8),
+              Text("¡NUEVA OFERTA!", style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFDB0212))),
+            ],
+          ),
+          content: Text(
+            contenido, 
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE53935),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text("¡La quiero!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              onPressed: () {
+                Navigator.of(context).pop(); 
+                setState(() => _currentIndex = 1); // Lo manda a la pestaña de promociones
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
