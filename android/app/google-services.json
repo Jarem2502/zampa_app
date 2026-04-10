@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "791681347022",
+    "project_id": "fir-console-9ddeb",
+    "storage_bucket": "fir-console-9ddeb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:791681347022:android:b200e60e68c18699750f9f",
+        "android_client_info": {
+          "package_name": "com.example.flutter_application_zampa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "791681347022-eth3md8i50kp8mim76bo4eptjem4mrnv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.flutter_application_zampa",
+            "certificate_hash": "ac24ca76718a1d906b536d4944bdc4a8204209a2"
+          }
+        },
+        {
+          "client_id": "791681347022-t3itkd3c2s9gf6vlj1l62qal9fouj6pi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUeNtsMh3w5i1nD8hi4FcGfV0vugBtSKk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "791681347022-t3itkd3c2s9gf6vlj1l62qal9fouj6pi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
